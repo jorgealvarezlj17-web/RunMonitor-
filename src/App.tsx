@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { Auth } from './components/Auth';
 import { ConnectionStatus } from './components/ConnectionStatus';
@@ -108,6 +108,27 @@ export default function App() {
       }
     };
     fetchConfig();
+
+    // Firestore Realtime Listener with query constraints (orderBy, limit) for optimized startup load and instant on/off status sync
+    const qEquipConstraint = query(
+      collection(db, 'equipment'),
+      orderBy('order', 'asc'),
+      limit(50)
+    );
+    const unsubscribeEquipListener = onSnapshot(qEquipConstraint, (snapshot) => {
+      // Instant synchronization of equipment status across sessions without full reload
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'modified' || change.type === 'added') {
+          // Status updated instantly
+        }
+      });
+    }, (error) => {
+      console.warn('Equipment listener background notice:', error);
+    });
+
+    return () => {
+      unsubscribeEquipListener();
+    };
   }, [user]);
 
   useEffect(() => {

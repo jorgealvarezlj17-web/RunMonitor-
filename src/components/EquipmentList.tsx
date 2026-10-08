@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, addDoc, deleteDoc, writeBatch, increment, Timestamp, where, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, addDoc, deleteDoc, writeBatch, increment, Timestamp, where, getDoc, setDoc, limit, getDocs, getDocsFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreUtils';
 import { Power, Clock, AlertCircle, AlertTriangle, Activity, Video, Edit2, Check, X as CloseIcon, Trash2, GripHorizontal, ZapOff, Zap, MoreVertical } from 'lucide-react';
@@ -775,7 +775,7 @@ export const EquipmentList: React.FC = () => {
     const handleVisibilityOrFocus = async () => {
       if (document.visibilityState === 'visible') {
         try {
-          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const eqSnap = await getDocsFromServer(query(collection(db, 'equipment'))).catch(() => getDocs(query(collection(db, 'equipment'))));
           const itemsMap = new Map<string, Equipment>();
           eqSnap.docs.forEach(doc => {
             itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
@@ -784,7 +784,7 @@ export const EquipmentList: React.FC = () => {
           items.sort((a, b) => (a.order || 0) - (b.order || 0));
           setEquipment(items);
 
-          const catSnap = await getDocs(query(collection(db, 'categories')));
+          const catSnap = await getDocsFromServer(query(collection(db, 'categories'))).catch(() => getDocs(query(collection(db, 'categories'))));
           const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
           cats.sort((a, b) => (a.order || 0) - (b.order || 0));
           setCategories(cats);
@@ -801,7 +801,7 @@ export const EquipmentList: React.FC = () => {
     const syncInterval = setInterval(async () => {
       if (document.visibilityState === 'visible') {
         try {
-          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const eqSnap = await getDocsFromServer(query(collection(db, 'equipment'))).catch(() => getDocs(query(collection(db, 'equipment'))));
           const itemsMap = new Map<string, Equipment>();
           eqSnap.docs.forEach(doc => {
             itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
@@ -810,7 +810,7 @@ export const EquipmentList: React.FC = () => {
           items.sort((a, b) => (a.order || 0) - (b.order || 0));
           setEquipment(items);
 
-          const catSnap = await getDocs(query(collection(db, 'categories')));
+          const catSnap = await getDocsFromServer(query(collection(db, 'categories'))).catch(() => getDocs(query(collection(db, 'categories'))));
           const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
           cats.sort((a, b) => (a.order || 0) - (b.order || 0));
           setCategories(cats);

@@ -771,7 +771,7 @@ export const EquipmentList: React.FC = () => {
       handleFirestoreError(error, OperationType.LIST, 'power_events');
     });
 
-    // Force refresh on window focus / visibility change for instant cross-device sync
+    // Force refresh on window focus / visibility change and periodic polling for instant cross-device sync
     const handleVisibilityOrFocus = async () => {
       if (document.visibilityState === 'visible') {
         try {
@@ -797,12 +797,36 @@ export const EquipmentList: React.FC = () => {
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
+    // Periodic sync poll every 3 seconds to guarantee real-time updates across all devices
+    const syncInterval = setInterval(async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+
+          const catSnap = await getDocs(query(collection(db, 'categories')));
+          const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
+          cats.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setCategories(cats);
+        } catch (e) {
+          // ignore background polling errors
+        }
+      }
+    }, 3000);
+
     return () => {
       unsubscribeEquip();
       unsubscribeCats();
       unsubscribePower();
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      clearInterval(syncInterval);
       clearTimeout(timeout);
     };
   }, [auth.currentUser, profile?.id]);

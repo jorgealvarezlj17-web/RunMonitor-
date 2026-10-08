@@ -771,10 +771,38 @@ export const EquipmentList: React.FC = () => {
       handleFirestoreError(error, OperationType.LIST, 'power_events');
     });
 
+    // Force refresh on window focus / visibility change for instant cross-device sync
+    const handleVisibilityOrFocus = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+
+          const catSnap = await getDocs(query(collection(db, 'categories')));
+          const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
+          cats.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setCategories(cats);
+        } catch (err) {
+          console.warn('Error refreshing on focus:', err);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
     return () => {
       unsubscribeEquip();
       unsubscribeCats();
       unsubscribePower();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       clearTimeout(timeout);
     };
   }, [auth.currentUser, profile?.id]);
@@ -1033,11 +1061,12 @@ export const EquipmentList: React.FC = () => {
     const uniqueItems = Array.from(uniqueItemsMap.values());
     uniqueItems.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    const slots = [];
+    const slots: React.ReactNode[] = [];
     uniqueItems.forEach((item, index) => {
       slots.push(
-        <DroppableSlot key={`slot-${categoryId || 'uncat'}-${item.id}`} categoryId={categoryId} order={index}>
+        <DroppableSlot key={`slot-${categoryId || 'uncat'}-${item.id}-${index}`} categoryId={categoryId} order={index}>
           <DraggableEquipmentCard
+            key={`drag-${item.id}`}
             item={item}
             toggleStatus={toggleStatus}
             setSelectedEquipment={setSelectedEquipment}
@@ -1074,8 +1103,8 @@ export const EquipmentList: React.FC = () => {
       >
         <div className="space-y-12">
           {/* Categorized Sections */}
-          {categorized.map(cat => (
-            <div key={cat.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-2xl w-full">
+          {categorized.map((cat, idx) => (
+            <div key={`cat-${cat.id}-${idx}`} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-2xl w-full">
               <CategoryHeader 
                 category={cat} 
                 onRename={renameCategory} 

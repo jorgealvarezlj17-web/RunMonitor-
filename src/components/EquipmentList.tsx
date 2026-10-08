@@ -797,7 +797,7 @@ export const EquipmentList: React.FC = () => {
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // Periodic sync poll every 3 seconds to guarantee real-time updates across all devices
+    // Periodic sync poll every 2 seconds to guarantee real-time updates across all devices
     const syncInterval = setInterval(async () => {
       if (document.visibilityState === 'visible') {
         try {
@@ -818,7 +818,7 @@ export const EquipmentList: React.FC = () => {
           // ignore background polling errors
         }
       }
-    }, 3000);
+    }, 2000);
 
     return () => {
       unsubscribeEquip();
@@ -1034,7 +1034,18 @@ export const EquipmentList: React.FC = () => {
         });
       }
 
-      batch.commit().catch(error => {
+      batch.commit().then(async () => {
+        try {
+          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+        } catch (e) {}
+      }).catch(error => {
         setEquipment(previousEquipment);
         handleFirestoreError(error, OperationType.UPDATE, `equipment/${item.id}`);
       });

@@ -262,7 +262,11 @@ const TankGrid: React.FC<TankGridProps> = ({
                     <button 
                       type="button"
                       onClick={() => {
-                        sounds.playClick();
+                        if (isAirOn) {
+                          sounds.playPowerOff();
+                        } else {
+                          sounds.playPowerOn();
+                        }
                         toggleTank('aireacion', id);
                       }}
                       title={`Tanque ${num} - Aireación (${isAirOn ? 'Encendido' : 'Apagado'})`}
@@ -280,7 +284,11 @@ const TankGrid: React.FC<TankGridProps> = ({
                     <button 
                       type="button"
                       onClick={() => {
-                        sounds.playClick();
+                        if (isMovOn) {
+                          sounds.playPowerOff();
+                        } else {
+                          sounds.playPowerOn();
+                        }
                         toggleTank('movimiento', id);
                       }}
                       title={`Tanque ${num} - Movimiento (${isMovOn ? 'Encendido' : 'Apagado'})`}

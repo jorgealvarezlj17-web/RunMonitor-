@@ -23,7 +23,9 @@ import {
   Zap,
   Radio,
   FileText,
-  Send
+  Send,
+  Smartphone,
+  Power
 } from 'lucide-react';
 import { sendWhatsAppMessageDirect } from '../whatsapp';
 import { TimePickerModal } from './TimePickerModal';
@@ -1692,6 +1694,101 @@ export const Settings: React.FC = () => {
                   <RefreshCw size={13} />
                   <span>Limpiar y Recargar Ahora</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Haptic & Vibration Card */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-sky-100 text-sky-700 rounded-2xl border border-sky-200/60">
+                    <Smartphone size={22} />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Vibración y Respuesta Táctil (Móvil)</h2>
+                    <p className="text-xs text-slate-500 font-medium">Prueba y verifica la vibración táctil de encendido y apagado en tu teléfono</p>
+                  </div>
+                </div>
+
+                <span className="px-3 py-1 text-xs font-black rounded-xl border flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>Motor Háptico Activo</span>
+                </span>
+              </div>
+
+              {/* Botones de Prueba */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPowerOn();
+                  }}
+                  className="p-4 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold shadow-md shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+                      <Power size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-emerald-950 uppercase tracking-wider">Probar Encender</p>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-0.5">Doble pulso táctil (Switch ON)</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playPowerOff();
+                  }}
+                  className="p-4 bg-red-50 border border-red-200 hover:bg-red-100 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-500 text-white flex items-center justify-center font-bold shadow-md shadow-red-500/20 group-hover:scale-110 transition-transform">
+                      <Power size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-red-950 uppercase tracking-wider">Probar Apagar</p>
+                      <p className="text-[11px] text-red-700 font-medium mt-0.5">Corte rotundo (Switch OFF)</p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playFalla();
+                  }}
+                  className="p-4 bg-amber-50 border border-amber-200 hover:bg-amber-100 rounded-2xl text-left transition-all active:scale-95 group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-md shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-amber-950 uppercase tracking-wider">Probar Falla / Corte</p>
+                      <p className="text-[11px] text-amber-700 font-medium mt-0.5">Vibración intermitente de alerta</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Guía informativa de compatibilidad si el teléfono no vibra */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <p className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                  <Smartphone size={15} className="text-sky-600" />
+                  ¿Tu teléfono aún no vibra al tocar los botones? Revisa esto en tu móvil:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] text-slate-600">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <p className="font-bold text-slate-900 mb-1">🤖 En Android (Samsung, Xiaomi, Motorola, etc.):</p>
+                    <p>Entra a <strong>Ajustes &gt; Sonido y vibración &gt; Respuesta táctil</strong> (o &quot;Vibración al tocar&quot;) y asegúrate de que esté <strong>ACTIVADA</strong>. Además verifica que no esté activo el <em>Ahorro de batería extremo</em> o el modo <em>No Molestar</em>, ya que Android silencia el motor de vibración en esos modos.</p>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200">
+                    <p className="font-bold text-slate-900 mb-1">🍎 En iPhone (iOS Safari / Chrome):</p>
+                    <p>Requiere iOS 17.4 o superior con el Taptic Engine activo en <strong>Ajustes &gt; Sonidos y vibraciones &gt; Vibración del sistema</strong>. Si tienes el interruptor lateral en Silencio estricto, sube un poco el volumen para escuchar y sentir el pulso de confirmación.</p>
+                  </div>
+                </div>
               </div>
             </div>
 

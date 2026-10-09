@@ -12,11 +12,12 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'app-logo.svg', 'logo.jpg', 'encendido.svg'],
+        includeAssets: ['icon.svg', 'app-logo.svg', 'logo.jpg', 'encendido.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'apple-touch-icon.png'],
         workbox: {
-          globPatterns: ['**/*.{js,css,ico,png,svg,jpg}'],
+          globPatterns: ['**/*.{js,css,ico,png,svg,jpg,webmanifest,json}'],
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
-          navigateFallback: null,
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api\//],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true

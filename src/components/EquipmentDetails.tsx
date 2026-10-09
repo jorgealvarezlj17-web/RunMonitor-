@@ -11,6 +11,7 @@ import { CircularTimePicker } from './CircularTimePicker';
 import { ImageCropperModal } from './ImageCropperModal';
 import { useProfile } from '../context/ProfileContext';
 import { getLatestShiftCutTime, calculateCurrentShiftUptime, formatUptimeParts, getSafeMillis } from '../utils/shiftUtils';
+import { sounds } from '../utils/sounds';
 
 interface Log {
   id: string;
@@ -282,6 +283,11 @@ export const EquipmentDetails: React.FC<{
       return;
     }
     if (!equipment.disabled && !isProcessing) {
+      if (equipment.status === 'on') {
+        sounds.playPowerOff();
+      } else {
+        sounds.playPowerOn();
+      }
       toggleStatus();
     }
   };
@@ -422,6 +428,17 @@ export const EquipmentDetails: React.FC<{
     }
     
     const newStatus = equipment.status === 'on' ? 'off' : 'on';
+    if (newStatus === 'on') {
+      sounds.playPowerOn();
+    } else {
+      if (reason === 'Apagado por falla en Corpoelec') {
+        sounds.playFalla();
+      } else if (reason === 'Apagado por corte eléctrico') {
+        sounds.playCorte();
+      } else {
+        sounds.playPowerOff();
+      }
+    }
     
     const now = Timestamp.now();
     const nowMs = now.toMillis();
@@ -1384,6 +1401,7 @@ export const EquipmentDetails: React.FC<{
                     <div className="space-y-3">
                       <button
                         onClick={() => {
+                          sounds.playPowerOff();
                           toggleStatus();
                           setShowTurnOffOptions(false);
                         }}
@@ -1400,6 +1418,7 @@ export const EquipmentDetails: React.FC<{
 
                       <button
                         onClick={() => {
+                          sounds.playFalla();
                           toggleStatus('Apagado por falla en Corpoelec');
                           setShowTurnOffOptions(false);
                         }}
@@ -1416,6 +1435,7 @@ export const EquipmentDetails: React.FC<{
 
                       <button
                         onClick={() => {
+                          sounds.playCorte();
                           toggleStatus('Apagado por corte eléctrico');
                           setShowTurnOffOptions(false);
                         }}
@@ -2107,14 +2127,20 @@ export const EquipmentDetails: React.FC<{
                   </div>
                   <div className="space-y-3 mt-6">
                     <button
-                      onClick={() => executeToggle(undefined, true)}
+                      onClick={() => {
+                        sounds.playSuccess();
+                        executeToggle(undefined, true);
+                      }}
                       className="w-full p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-2xl hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                       Sí, registrar restablecimiento
                     </button>
                     <button
-                      onClick={() => executeToggle(undefined, false)}
+                      onClick={() => {
+                        sounds.playPowerOn();
+                        executeToggle(undefined, false);
+                      }}
                       className="w-full p-4 bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                     >
                       <Power size={20} />

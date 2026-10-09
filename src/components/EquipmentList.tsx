@@ -229,6 +229,11 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
       return;
     }
     if (!item.disabled && processingId !== item.id) {
+      if (item.status === 'on') {
+        sounds.playPowerOff();
+      } else {
+        sounds.playPowerOn();
+      }
       toggleStatus(item);
     }
   };
@@ -419,6 +424,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
                 <div className="space-y-3">
                   <button
                     onClick={() => {
+                      sounds.playPowerOff();
                       toggleStatus(item);
                       setShowTurnOffOptions(false);
                     }}
@@ -435,6 +441,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
 
                   <button
                     onClick={() => {
+                      sounds.playFalla();
                       toggleStatus(item, 'Apagado por falla en Corpoelec');
                       setShowTurnOffOptions(false);
                     }}
@@ -451,6 +458,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
 
                   <button
                     onClick={() => {
+                      sounds.playCorte();
                       toggleStatus(item, 'Apagado por corte eléctrico');
                       setShowTurnOffOptions(false);
                     }}
@@ -1300,14 +1308,24 @@ export const EquipmentList: React.FC = () => {
                 </div>
                 <div className="space-y-3 mt-6">
                   <button
-                    onClick={() => executeToggle(powerPromptState.item, powerPromptState.reason, true)}
+                    onClick={() => {
+                      sounds.playSuccess();
+                      executeToggle(powerPromptState.item, powerPromptState.reason, true);
+                    }}
                     className="w-full p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-2xl hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2"
                   >
                     <Check size={20} />
                     Sí, registrar restablecimiento
                   </button>
                   <button
-                    onClick={() => executeToggle(powerPromptState.item, powerPromptState.reason, false)}
+                    onClick={() => {
+                      if (powerPromptState.item.status === 'on') {
+                        sounds.playPowerOff();
+                      } else {
+                        sounds.playPowerOn();
+                      }
+                      executeToggle(powerPromptState.item, powerPromptState.reason, false);
+                    }}
                     className="w-full p-4 bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                   >
                     <Power size={20} />

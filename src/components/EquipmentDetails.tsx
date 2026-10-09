@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CircularTimePicker } from './CircularTimePicker';
 import { ImageCropperModal } from './ImageCropperModal';
 import { useProfile } from '../context/ProfileContext';
+import { getLatestShiftCutTime, calculateCurrentShiftUptime, formatUptimeParts, getSafeMillis } from '../utils/shiftUtils';
 
 interface Log {
   id: string;
@@ -38,63 +39,30 @@ interface Equipment {
   showTotalTime?: boolean;
   tiempo_operativo?: boolean;
   lastOffReason?: string | null;
+  lastShiftCutAt?: any;
 }
 
-const UptimeDisplay: React.FC<{ equipment: Equipment }> = ({ equipment }) => {
+const UptimeDisplay: React.FC<{ equipment: Equipment; shiftEndTime?: string }> = ({ equipment, shiftEndTime = '18:00' }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    let interval: any;
-    if (equipment.status === 'on' && equipment.lastTurnedOn) {
-      const startTime = equipment.lastTurnedOn.toMillis 
-        ? equipment.lastTurnedOn.toMillis() 
-        : (equipment.lastTurnedOn.seconds ? equipment.lastTurnedOn.seconds * 1000 : Date.now());
-      
-      const update = () => {
-        const now = Date.now();
-        
-        // Robust startTime calculation
-        let startTimeMillis = Date.now();
-        if (equipment.lastTurnedOn) {
-          if (equipment.lastTurnedOn.toMillis) {
-            startTimeMillis = equipment.lastTurnedOn.toMillis();
-          } else if (equipment.lastTurnedOn.seconds) {
-            startTimeMillis = equipment.lastTurnedOn.seconds * 1000;
-          } else if (equipment.lastTurnedOn instanceof Date) {
-            startTimeMillis = equipment.lastTurnedOn.getTime();
-          } else if (typeof equipment.lastTurnedOn === 'number') {
-            startTimeMillis = equipment.lastTurnedOn;
-          }
-        }
+    const update = () => {
+      const now = new Date();
+      const latestCutTime = getLatestShiftCutTime(shiftEndTime, now);
+      const uptime = calculateCurrentShiftUptime(equipment, latestCutTime, now);
+      setElapsed(uptime);
+    };
 
-        // Calculate session time
-        const currentSessionSeconds = Math.max(0, Math.floor((now - startTimeMillis) / 1000));
-        
-        // Display cumulative time (total previously accumulated + current session)
-        setElapsed((equipment.totalUsageTime || 0) + currentSessionSeconds);
-      };
-
-      update();
-      interval = setInterval(update, 1000);
-    } else {
-      setElapsed(equipment.totalUsageTime || 0);
-    }
-
+    update();
+    const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [equipment.status, equipment.lastTurnedOn, equipment.totalUsageTime]);
+  }, [equipment.status, equipment.lastTurnedOn, equipment.totalUsageTime, (equipment as any).lastShiftCutAt, shiftEndTime]);
 
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return { h, m, s };
-  };
-
-  const { h, m, s } = formatTime(elapsed);
+  const { h, m, s } = formatUptimeParts(elapsed);
 
   return (
     <span className="font-mono text-base font-bold text-white tracking-wider tabular-nums">
-      {h.toString().padStart(2, '0')}:{m.toString().padStart(2, '0')}:{s.toString().padStart(2, '0')}
+      {h}:{m}:{s}
     </span>
   );
 };
@@ -104,7 +72,23 @@ export const EquipmentDetails: React.FC<{
   onClose: () => void; 
   initialEdit?: boolean;
   onToggleStatus?: (reason?: string, registerPowerRestored?: boolean) => void;
-}> = ({ equipment, onClose, initialEdit = false, onToggleStatus }) => {
+  shiftEndTime?: string;
+}> = ({ equipment, onClose, initialEdit = false, onToggleStatus, shiftEndTime: propShiftEndTime }) => {
+  const [shiftEndTime, setShiftEndTime] = useState(propShiftEndTime || '18:00');
+
+  useEffect(() => {
+    if (propShiftEndTime) {
+      setShiftEndTime(propShiftEndTime);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, 'config', 'app_settings'), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '18:00');
+      }
+    });
+    return () => unsub();
+  }, [propShiftEndTime]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
@@ -440,14 +424,20 @@ export const EquipmentDetails: React.FC<{
     const newStatus = equipment.status === 'on' ? 'off' : 'on';
     
     const now = Timestamp.now();
+    const nowMs = now.toMillis();
+    const latestCutTime = getLatestShiftCutTime(shiftEndTime, new Date());
+    const latestCutMs = latestCutTime.getTime();
     
     let additionalSeconds = 0;
     if (equipment.status === 'on' && equipment.lastTurnedOn) {
-      const startTime = equipment.lastTurnedOn.toMillis 
-        ? equipment.lastTurnedOn.toMillis() 
-        : (equipment.lastTurnedOn.seconds ? equipment.lastTurnedOn.seconds * 1000 : now.toMillis());
-      additionalSeconds = Math.max(0, Math.floor((now.toMillis() - startTime) / 1000));
+      const startTime = getSafeMillis(equipment.lastTurnedOn) || nowMs;
+      const effectiveStart = Math.max(startTime, latestCutMs);
+      additionalSeconds = Math.max(0, Math.floor((nowMs - effectiveStart) / 1000));
     }
+
+    const cutAtTime = getSafeMillis(equipment.lastShiftCutAt);
+    const baseUsage = cutAtTime >= latestCutMs ? (equipment.totalUsageTime || 0) : 0;
+    const newTotalUsage = baseUsage + additionalSeconds;
 
     try {
       const batch = writeBatch(db);
@@ -458,7 +448,8 @@ export const EquipmentDetails: React.FC<{
         status: newStatus,
         lastUpdated: serverTimestamp(),
         lastTurnedOn: newStatus === 'on' ? Timestamp.now() : null,
-        totalUsageTime: increment(additionalSeconds),
+        totalUsageTime: newStatus === 'off' ? newTotalUsage : (cutAtTime >= latestCutMs ? equipment.totalUsageTime || 0 : 0),
+        lastShiftCutAt: Timestamp.fromDate(latestCutTime),
         lastOffReason: newStatus === 'off' ? (reason || null) : null
       });
 
@@ -1296,7 +1287,7 @@ export const EquipmentDetails: React.FC<{
               <div className="absolute bottom-0 left-0 bg-slate-900/40 backdrop-blur-md pl-8 pr-5 py-4 rounded-tr-[2rem] border-t border-r border-white/5 flex items-center gap-4">
                 <div className="flex flex-col">
                   <span className="text-[8px] font-bold text-white/60 uppercase tracking-[0.2em] leading-none mb-1.5">Tiempo Total</span>
-                  <UptimeDisplay equipment={equipment} />
+                  <UptimeDisplay equipment={equipment} shiftEndTime={shiftEndTime} />
                 </div>
                 <div className="w-px h-6 bg-white/10" />
                 <button 

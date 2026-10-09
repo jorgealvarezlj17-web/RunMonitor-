@@ -490,6 +490,41 @@ export const CorteReporte: React.FC = () => {
 
   const TANK_OPTIONS = Array.from({ length: 60 }, (_, i) => `T${String(i + 1).padStart(3, '0')}`);
 
+  const shiftTanksDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const persistShiftTanksDebounced = (tanksAireacion: string[], tanquesMovimiento: string[]) => {
+    if (shiftTanksDebounceRef.current) {
+      clearTimeout(shiftTanksDebounceRef.current);
+    }
+    shiftTanksDebounceRef.current = setTimeout(async () => {
+      try {
+        await setDoc(doc(db, 'config', 'current_shift_tanks'), {
+          tanquesAireacion,
+          tanquesMovimiento,
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
+      } catch (e) {
+        console.error("Error saving current_shift_tanks to Firestore:", e);
+      }
+    }, 500);
+  };
+
+  const flushShiftTanks = async (tanksAireacion: string[], tanquesMovimiento: string[]) => {
+    if (shiftTanksDebounceRef.current) {
+      clearTimeout(shiftTanksDebounceRef.current);
+      shiftTanksDebounceRef.current = null;
+    }
+    try {
+      await setDoc(doc(db, 'config', 'current_shift_tanks'), {
+        tanquesAireacion,
+        tanquesMovimiento,
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.error("Error saving current_shift_tanks to Firestore:", e);
+    }
+  };
+
   const toggleTank = (type: 'aireacion' | 'movimiento', tankId: string) => {
     if (isReadOnly) return;
     const currentArray = type === 'aireacion' ? tanquesAireacion : tanquesMovimiento;
@@ -501,17 +536,10 @@ export const CorteReporte: React.FC = () => {
     
     setArray(newArray);
     
-    // Save to Firestore
-    try {
-      setDoc(doc(db, 'config', 'current_shift_tanks'), {
-        [type === 'aireacion' ? 'tanquesAireacion' : 'tanquesMovimiento']: newArray,
-        lastUpdated: serverTimestamp()
-      }, { merge: true }).catch(e => {
-        console.error("Error saving tanks:", e);
-      });
-    } catch (e) {
-      console.error("Error saving tanks:", e);
-    }
+    // Save to Firestore (debounced)
+    const newAir = type === 'aireacion' ? newArray : tanquesAireacion;
+    const newMov = type === 'movimiento' ? newArray : tanquesMovimiento;
+    persistShiftTanksDebounced(newAir, newMov);
   };
 
   const loadPreviousTanks = () => {
@@ -521,30 +549,14 @@ export const CorteReporte: React.FC = () => {
     const validMov = prevTanquesMovimiento.filter(t => currentAvailable.includes(t));
     setTanquesAireacion(validAir);
     setTanquesMovimiento(validMov);
-    try {
-      setDoc(doc(db, 'config', 'current_shift_tanks'), {
-        tanquesAireacion: validAir,
-        tanquesMovimiento: validMov,
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      console.error(e);
-    }
+    flushShiftTanks(validAir, validMov);
   };
 
   const clearTanks = () => {
     if (isReadOnly) return;
     setTanquesAireacion([]);
     setTanquesMovimiento([]);
-    try {
-      setDoc(doc(db, 'config', 'current_shift_tanks'), {
-        tanquesAireacion: [],
-        tanquesMovimiento: [],
-        lastUpdated: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      console.error(e);
-    }
+    flushShiftTanks([], []);
   };
 
   const [autoSendEnabled, setAutoSendEnabled] = useState(true);

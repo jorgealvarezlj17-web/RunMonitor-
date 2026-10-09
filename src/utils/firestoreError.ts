@@ -29,8 +29,25 @@ interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  const isQuota = errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded');
+  const isOffline = 
+    (typeof navigator !== 'undefined' && !navigator.onLine) ||
+    errMsg.includes('offline') ||
+    errMsg.includes('unavailable') ||
+    errMsg.includes('backend') ||
+    errMsg.includes('network');
+
+  if (isQuota || isOffline) {
+    console.warn(`[Firestore Graceful Mode] Operación ${operationType} en ${path}: ${isQuota ? 'Cuota diaria de Firestore excedida (modo local)' : 'Cliente offline'}.`, errMsg);
+    try {
+      localStorage.setItem('firestore_quota_exceeded', 'true');
+    } catch {}
+    return;
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -46,7 +63,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
-  }
+  };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, addDoc, deleteDoc, writeBatch, increment, Timestamp, where, getDoc, setDoc, limit, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, updateDoc, serverTimestamp, addDoc, deleteDoc, writeBatch, increment, Timestamp, where, getDoc, setDoc, limit, getDocs, getDocsFromServer } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreUtils';
 import { Power, Clock, AlertCircle, AlertTriangle, Activity, Video, Edit2, Check, X as CloseIcon, Trash2, GripHorizontal, ZapOff, Zap, MoreVertical } from 'lucide-react';
@@ -14,6 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 const MAX_SLOTS = 30;
 
 import { useProfile } from '../context/ProfileContext';
+import { getLatestShiftCutTime, calculateCurrentShiftUptime, formatElapsedSeconds, getSafeMillis } from '../utils/shiftUtils';
 
 interface Equipment {
   id: string;
@@ -30,6 +31,7 @@ interface Equipment {
   showTotalTime?: boolean;
   tiempo_operativo?: boolean;
   lastOffReason?: string | null;
+  lastShiftCutAt?: any;
 }
 
 interface Category {
@@ -39,48 +41,26 @@ interface Category {
   order: number;
 }
 
-const CumulativeTimer = ({ equipment, className = "" }: { equipment: Equipment, className?: string }) => {
+const CumulativeTimer = ({ equipment, shiftEndTime = "18:00", className = "" }: { equipment: Equipment, shiftEndTime?: string, className?: string }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    let interval: any;
-    if (equipment.status === 'on' && equipment.lastTurnedOn) {
-      const startTime = equipment.lastTurnedOn.toMillis 
-        ? equipment.lastTurnedOn.toMillis() 
-        : (equipment.lastTurnedOn.seconds ? equipment.lastTurnedOn.seconds * 1000 : Date.now());
-      
-      const update = () => {
-        const now = Date.now();
-        const currentSessionSeconds = Math.max(0, Math.floor((now - startTime) / 1000));
-        setElapsed((equipment.totalUsageTime || 0) + currentSessionSeconds);
-      };
+    const update = () => {
+      const now = new Date();
+      const latestCutTime = getLatestShiftCutTime(shiftEndTime, now);
+      const uptime = calculateCurrentShiftUptime(equipment, latestCutTime, now);
+      setElapsed(uptime);
+    };
 
-      update();
-      interval = setInterval(update, 1000);
-    } else {
-      setElapsed(equipment.totalUsageTime || 0);
-    }
-
+    update();
+    const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [equipment.status, equipment.lastTurnedOn, equipment.totalUsageTime]);
-
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    let parts = [];
-    if (hrs > 0) parts.push(`${hrs}h`);
-    if (mins > 0 || hrs > 0) parts.push(`${mins}m`);
-    parts.push(`${secs}s`);
-    
-    return parts.join(' ');
-  };
+  }, [equipment.status, equipment.lastTurnedOn, equipment.totalUsageTime, (equipment as any).lastShiftCutAt, shiftEndTime]);
 
   return (
     <div className={`flex items-center gap-1 ${className}`}>
       <Clock size={12} className="shrink-0" />
-      <span className="truncate">{formatTime(elapsed)}</span>
+      <span className="truncate">{formatElapsedSeconds(elapsed)}</span>
     </div>
   );
 };
@@ -177,7 +157,7 @@ const CategoryHeader = ({ category, onRename, onDelete }: { category: Category, 
   );
 };
 
-const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, style, listeners, attributes }: any) => {
+const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, style, listeners, attributes, shiftEndTime = "18:00" }: any) => {
   if (!item) return null;
   const [showNote, setShowNote] = useState(false);
   const [showTurnOffOptions, setShowTurnOffOptions] = useState(false);
@@ -359,7 +339,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
             </div>
             <div className="pl-2">
               {!item.disabled && item.tiempo_operativo !== false && (
-                <CumulativeTimer equipment={item} className="text-white text-[10px] font-bold font-mono tracking-tighter" />
+                <CumulativeTimer equipment={item} shiftEndTime={shiftEndTime} className="text-white text-[10px] font-bold font-mono tracking-tighter" />
               )}
             </div>
           </div>
@@ -500,7 +480,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
   );
 });
 
-const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction }: any) => {
+const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, shiftEndTime = "18:00" }: any) => {
   if (!item) return null;
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: item.id,
@@ -538,6 +518,7 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
         setConfirmAction={setConfirmAction}
         listeners={listeners}
         attributes={attributes}
+        shiftEndTime={shiftEndTime}
       />
     </div>
   );
@@ -569,6 +550,7 @@ export const EquipmentList: React.FC = () => {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shiftEndTime, setShiftEndTime] = useState('18:00');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [isEditingSelected, setIsEditingSelected] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -578,6 +560,16 @@ export const EquipmentList: React.FC = () => {
   const [isPowerOut, setIsPowerOut] = useState<boolean>(false);
   const [showGeneralMenu, setShowGeneralMenu] = useState(false);
   const generalMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'config', 'app_settings'), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '18:00');
+      }
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -739,10 +731,14 @@ export const EquipmentList: React.FC = () => {
     );
 
     const unsubscribeEquip = onSnapshot(qEquip, (snapshot) => {
-      const items = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Equipment[];
+      const itemsMap = new Map<string, Equipment>();
+      snapshot.docs.forEach(doc => {
+        itemsMap.set(doc.id, {
+          id: doc.id,
+          ...doc.data()
+        } as Equipment);
+      });
+      const items = Array.from(itemsMap.values());
       items.sort((a, b) => (a.order || 0) - (b.order || 0));
       setEquipment(items);
       setLoading(false);
@@ -775,10 +771,62 @@ export const EquipmentList: React.FC = () => {
       handleFirestoreError(error, OperationType.LIST, 'power_events');
     });
 
+    // Force refresh on window focus / visibility change and periodic polling for instant cross-device sync
+    const handleVisibilityOrFocus = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const eqSnap = await getDocsFromServer(query(collection(db, 'equipment'))).catch(() => getDocs(query(collection(db, 'equipment'))));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+
+          const catSnap = await getDocsFromServer(query(collection(db, 'categories'))).catch(() => getDocs(query(collection(db, 'categories'))));
+          const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
+          cats.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setCategories(cats);
+        } catch (err) {
+          console.warn('Error refreshing on focus:', err);
+        }
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // Periodic sync poll every 2 seconds to guarantee real-time updates across all devices
+    const syncInterval = setInterval(async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const eqSnap = await getDocsFromServer(query(collection(db, 'equipment'))).catch(() => getDocs(query(collection(db, 'equipment'))));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+
+          const catSnap = await getDocsFromServer(query(collection(db, 'categories'))).catch(() => getDocs(query(collection(db, 'categories'))));
+          const cats = catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Category[];
+          cats.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setCategories(cats);
+        } catch (e) {
+          // ignore background polling errors
+        }
+      }
+    }, 2000);
+
     return () => {
       unsubscribeEquip();
       unsubscribeCats();
       unsubscribePower();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      clearInterval(syncInterval);
       clearTimeout(timeout);
     };
   }, [auth.currentUser, profile?.id]);
@@ -872,26 +920,7 @@ export const EquipmentList: React.FC = () => {
     }
   };
 
-  const toggleStatus = async (item: Equipment, reason?: string) => {
-    if (isReadOnly || processingId === item.id) return;
-
-    // If power is currently out, ALWAYS prompt when toggling ANY equipment
-    // UNLESS they are explicitly turning it off with a new power failure reason
-    if (isPowerOut && reason !== 'Apagado por falla en Corpoelec' && reason !== 'Apagado por corte eléctrico') {
-      setPowerPromptState({ item, reason });
-      return;
-    }
-
-    // Legacy check just in case
-    if (item.status === 'off' && (item.lastOffReason === 'Apagado por falla en Corpoelec' || item.lastOffReason === 'Apagado por corte eléctrico')) {
-      setPowerPromptState({ item, reason });
-      return;
-    }
-
-    await executeToggle(item, reason, false);
-  };
-
-  const executeToggle = async (item: Equipment, reason?: string, registerPowerRestored: boolean = false) => {
+  const executeToggle = useCallback(async (item: Equipment, reason?: string, registerPowerRestored: boolean = false) => {
     setProcessingId(item.id);
     
     const getSafeCachedUid = () => {
@@ -928,30 +957,36 @@ export const EquipmentList: React.FC = () => {
     }
     
     const now = Timestamp.now();
+    const nowMs = now.toMillis();
+    const latestCutTime = getLatestShiftCutTime(shiftEndTime, new Date());
+    const latestCutMs = latestCutTime.getTime();
     
     let additionalSeconds = 0;
     if (item.status === 'on' && item.lastTurnedOn) {
-      const startTime = item.lastTurnedOn.toMillis 
-        ? item.lastTurnedOn.toMillis() 
-        : (item.lastTurnedOn.seconds ? item.lastTurnedOn.seconds * 1000 : now.toMillis());
-      additionalSeconds = Math.max(0, Math.floor((now.toMillis() - startTime) / 1000));
+      const startTime = getSafeMillis(item.lastTurnedOn) || nowMs;
+      const effectiveStart = Math.max(startTime, latestCutMs);
+      additionalSeconds = Math.max(0, Math.floor((nowMs - effectiveStart) / 1000));
     }
 
+    const cutAtTime = getSafeMillis(item.lastShiftCutAt);
+    const baseUsage = cutAtTime >= latestCutMs ? (item.totalUsageTime || 0) : 0;
+    const newTotalUsage = baseUsage + additionalSeconds;
+
     // Instant optimistic update (0ms UI lag)
-    const previousEquipment = equipment;
     setEquipment(prev => prev.map(eq => {
       if (eq.id === item.id) {
         return {
           ...eq,
           status: newStatus,
           lastTurnedOn: newStatus === 'on' ? now : null,
-          totalUsageTime: (eq.totalUsageTime || 0) + additionalSeconds,
+          totalUsageTime: newStatus === 'off' ? newTotalUsage : (cutAtTime >= latestCutMs ? eq.totalUsageTime || 0 : 0),
+          lastShiftCutAt: Timestamp.fromDate(latestCutTime),
           lastOffReason: newStatus === 'off' ? (reason || null) : null
         };
       }
       return eq;
     }));
-
+    const previousEquipment = equipment;
     try {
       const batch = writeBatch(db);
       const equipmentRef = doc(db, 'equipment', item.id);
@@ -961,7 +996,8 @@ export const EquipmentList: React.FC = () => {
         status: newStatus,
         lastUpdated: serverTimestamp(),
         lastTurnedOn: newStatus === 'on' ? Timestamp.now() : null,
-        totalUsageTime: increment(additionalSeconds),
+        totalUsageTime: newStatus === 'off' ? newTotalUsage : (cutAtTime >= latestCutMs ? item.totalUsageTime || 0 : 0),
+        lastShiftCutAt: Timestamp.fromDate(latestCutTime),
         lastOffReason: newStatus === 'off' ? (reason || null) : null
       });
 
@@ -998,7 +1034,18 @@ export const EquipmentList: React.FC = () => {
         });
       }
 
-      batch.commit().catch(error => {
+      batch.commit().then(async () => {
+        try {
+          const eqSnap = await getDocs(query(collection(db, 'equipment')));
+          const itemsMap = new Map<string, Equipment>();
+          eqSnap.docs.forEach(doc => {
+            itemsMap.set(doc.id, { id: doc.id, ...doc.data() } as Equipment);
+          });
+          const items = Array.from(itemsMap.values());
+          items.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setEquipment(items);
+        } catch (e) {}
+      }).catch(error => {
         setEquipment(previousEquipment);
         handleFirestoreError(error, OperationType.UPDATE, `equipment/${item.id}`);
       });
@@ -1009,7 +1056,26 @@ export const EquipmentList: React.FC = () => {
       setProcessingId(null);
       setPowerPromptState(null);
     }
-  };
+  }, [auth, profile, sounds, shiftEndTime, setProcessingId, setPowerPromptState, setEquipment]);
+
+  const toggleStatus = useCallback(async (item: Equipment, reason?: string) => {
+    if (isReadOnly || processingId === item.id) return;
+
+    // If power is currently out, ALWAYS prompt when toggling ANY equipment
+    // UNLESS they are explicitly turning it off with a new power failure reason
+    if (isPowerOut && reason !== 'Apagado por falla en Corpoelec' && reason !== 'Apagado por corte eléctrico') {
+      setPowerPromptState({ item, reason });
+      return;
+    }
+
+    // Legacy check just in case
+    if (item.status === 'off' && (item.lastOffReason === 'Apagado por falla en Corpoelec' || item.lastOffReason === 'Apagado por corte eléctrico')) {
+      setPowerPromptState({ item, reason });
+      return;
+    }
+
+    await executeToggle(item, reason, false);
+  }, [isReadOnly, processingId, isPowerOut, setPowerPromptState, executeToggle]);
 
   if (loading) {
     return (
@@ -1022,43 +1088,20 @@ export const EquipmentList: React.FC = () => {
   }
 
   const renderCategorySlots = (items: Equipment[], categoryId: string | null) => {
-    // Find the maximum order to know how many slots we need
-    const maxOrder = items.length > 0 ? Math.max(...items.map(i => i.order || 0)) : -1;
-    
-    // Render slots for existing items + 1 extra for dropping
-    const totalSlots = items.length + 1;
-    
-    const slots = [];
-    for (let i = 0; i < totalSlots; i++) {
-      // Find item for this exact slot
-      const item = items.find(e => (e.order || 0) === i);
-      
-      slots.push(
-        <DroppableSlot key={`slot-${categoryId || 'uncat'}-${i}`} categoryId={categoryId} order={i}>
-          {item ? (
-            <DraggableEquipmentCard
-              item={item}
-              toggleStatus={toggleStatus}
-              setSelectedEquipment={setSelectedEquipment}
-              setIsEditingSelected={setIsEditingSelected}
-              setConfirmAction={setConfirmAction}
-              processingId={processingId}
-            />
-          ) : null}
-        </DroppableSlot>
-      );
-    }
-    
-    // Also render any items that somehow have duplicate orders or negative orders at the end
-    const duplicateItems = items.filter(e => {
-      const order = e.order || 0;
-      return order < 0 || order >= totalSlots || items.filter(i => (i.order || 0) === order).indexOf(e) > 0;
+    // Deduplicate items by ID
+    const uniqueItemsMap = new Map<string, Equipment>();
+    items.forEach(i => {
+      if (i && i.id) uniqueItemsMap.set(i.id, i);
     });
-    
-    duplicateItems.forEach((item, idx) => {
+    const uniqueItems = Array.from(uniqueItemsMap.values());
+    uniqueItems.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    const slots: React.ReactNode[] = [];
+    uniqueItems.forEach((item, index) => {
       slots.push(
-        <DroppableSlot key={`dup-${item.id}`} categoryId={categoryId} order={totalSlots + idx}>
+        <DroppableSlot key={`slot-${categoryId || 'uncat'}-${item.id}-${index}`} categoryId={categoryId} order={index}>
           <DraggableEquipmentCard
+            key={`drag-${item.id}`}
             item={item}
             toggleStatus={toggleStatus}
             setSelectedEquipment={setSelectedEquipment}
@@ -1069,7 +1112,14 @@ export const EquipmentList: React.FC = () => {
         </DroppableSlot>
       );
     });
-    
+
+    const trailingOrder = uniqueItems.length;
+    slots.push(
+      <DroppableSlot key={`slot-${categoryId || 'uncat'}-empty-${trailingOrder}`} categoryId={categoryId} order={trailingOrder}>
+        {null}
+      </DroppableSlot>
+    );
+
     return slots;
   };
   const uncategorized = equipment.filter(e => !e.categoryId);
@@ -1088,8 +1138,8 @@ export const EquipmentList: React.FC = () => {
       >
         <div className="space-y-12">
           {/* Categorized Sections */}
-          {categorized.map(cat => (
-            <div key={cat.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-2xl w-full">
+          {categorized.map((cat, idx) => (
+            <div key={`cat-${cat.id}-${idx}`} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-2xl w-full">
               <CategoryHeader 
                 category={cat} 
                 onRename={renameCategory} 
@@ -1159,6 +1209,7 @@ export const EquipmentList: React.FC = () => {
               <EquipmentDetails 
                 key={selectedEquipment.id}
                 equipment={equipment.find(e => e.id === selectedEquipment.id) || selectedEquipment} 
+                shiftEndTime={shiftEndTime}
                 onClose={() => {
                   setSelectedEquipment(null);
                   setIsEditingSelected(false);

@@ -45,6 +45,7 @@ import {
   writeBatch, 
   Timestamp 
 } from 'firebase/firestore';
+import { dexieDb } from '../db/db';
 import { db, auth } from '../firebase';
 import { sounds } from '../utils/sounds';
 import { format } from 'date-fns';
@@ -387,7 +388,8 @@ export const Settings: React.FC = () => {
     if (isReadOnly || !newCategoryName.trim() || !auth.currentUser) return;
     sounds.playClick();
     try {
-      await addDoc(collection(db, 'categories'), {
+      await dexieDb.categories.add({
+        id: crypto.randomUUID(), // Generate a string ID
         name: newCategoryName.trim(),
         ownerUid: auth.currentUser.uid,
         order: categories.length
@@ -403,7 +405,7 @@ export const Settings: React.FC = () => {
     if (isReadOnly) return;
     sounds.playClick();
     try {
-      await deleteDoc(doc(db, 'categories', id));
+      await dexieDb.categories.delete(id);
       sounds.playPowerOff();
     } catch (error) {
       console.error('Error deleting category:', error);

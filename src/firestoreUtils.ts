@@ -28,8 +28,19 @@ export interface FirestoreErrorInfo {
   }
 }
 
+export let isQuotaExceeded = false;
+export function checkQuotaExceeded() {
+  if (isQuotaExceeded) return true;
+  try {
+    return localStorage.getItem('firestore_quota_exceeded') === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errMsg = error instanceof Error ? error.message : String(error);
+  const isQuota = errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded');
   const isOffline = 
     (typeof navigator !== 'undefined' && !navigator.onLine) ||
     errMsg.includes('offline') ||
@@ -37,6 +48,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     errMsg.includes('Failed to get document because the client is offline') ||
     errMsg.includes('backend') ||
     errMsg.includes('network');
+
+  if (isQuota || isOffline) {
+    if (isQuota) isQuotaExceeded = true;
+    console.warn(`[Firestore Graceful Mode] Operación ${operationType} en ${path}: ${isQuota ? 'Cuota diaria de Firestore excedida (modo local)' : 'Cliente offline'}.`, errMsg);
+    try {
+      localStorage.setItem('firestore_quota_exceeded', 'true');
+    } catch {}
+    return;
+  }
 
   const errInfo: FirestoreErrorInfo = {
     error: errMsg,
@@ -56,11 +76,6 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-
-  if (isOffline) {
-    console.warn(`[Firestore Offline Cache] Operación ${operationType} en ${path}: Utilizando datos de la base de datos local.`, errMsg);
-    return;
-  }
 
   console.error('Firestore Error: ', JSON.stringify(errInfo));
 }

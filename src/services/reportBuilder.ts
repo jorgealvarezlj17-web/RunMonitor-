@@ -451,24 +451,36 @@ export async function updateStagedUpcomingReport(options?: {
   shiftStartTime?: string;
   shiftEndTime?: string;
   operatorName?: string;
-}): Promise<ShiftReportResult> {
+}, forced: boolean = false): Promise<ShiftReportResult> {
   const result = await buildShiftReportText(options);
 
+  // Always update localStorage as a local cache
   try {
-    const stagedDocRef = doc(db, 'whatsapp_backups', 'staged_upcoming_report');
-    await setDoc(stagedDocRef, {
-      id: 'staged_upcoming_report',
-      timestamp: new Date().toISOString(),
-      recipient: 'Grupo WhatsApp (Programado)',
-      message: result.text,
-      status: 'scheduled',
-      type: 'reporte_programado',
-      shiftKey: result.shiftKey,
-      scheduledTime: result.shiftEnd.toISOString(),
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-  } catch (err) {
-    console.warn('[reportBuilder] Error saving staged upcoming report to Firestore:', err);
+    localStorage.setItem('staged_upcoming_report_text', result.text);
+    localStorage.setItem('staged_upcoming_report_shiftKey', result.shiftKey);
+    localStorage.setItem('staged_upcoming_report_timestamp', new Date().toISOString());
+  } catch (e) {
+    console.warn('[reportBuilder] Error saving to localStorage:', e);
+  }
+
+  // Only write to Firestore if forced
+  if (forced) {
+    try {
+      const stagedDocRef = doc(db, 'whatsapp_backups', 'staged_upcoming_report');
+      await setDoc(stagedDocRef, {
+        id: 'staged_upcoming_report',
+        timestamp: new Date().toISOString(),
+        recipient: 'Grupo WhatsApp (Programado)',
+        message: result.text,
+        status: 'scheduled',
+        type: 'reporte_programado',
+        shiftKey: result.shiftKey,
+        scheduledTime: result.shiftEnd.toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('[reportBuilder] Error saving staged upcoming report to Firestore:', err);
+    }
   }
 
   return result;

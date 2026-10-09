@@ -213,18 +213,18 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           updatePresence(true).catch(() => {});
         }
 
-        // Live heartbeat every 4 seconds while user is actively looking at the app
+        // Live heartbeat every 60 seconds while user is actively looking at the app
         const heartbeatInterval = setInterval(() => {
           if (document.visibilityState === 'visible' && !document.hidden) {
             updatePresence(true);
           }
-        }, 4000);
+        }, 60000);
 
-        // User activity listener for presence (throttled to 4s)
+        // User activity listener for presence (throttled to 60s)
         let lastActivityUpdate = Date.now();
         const handleUserActivity = () => {
           const now = Date.now();
-          if (now - lastActivityUpdate > 4000 && document.visibilityState === 'visible' && !document.hidden) {
+          if (now - lastActivityUpdate > 60000 && document.visibilityState === 'visible' && !document.hidden) {
             lastActivityUpdate = now;
             updatePresence(true);
           }

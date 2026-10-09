@@ -1,9 +1,9 @@
 name: RunMonitor Vigilante Nativo
 
 on:
-  schedule:
-    # Se ejecuta cada 5 minutos automáticamente
-    - cron: '*/5 * * * *'
+  # schedule:
+  #   # Se ejecuta cada 5 minutos automáticamente
+  #   - cron: '*/5 * * * *'
   workflow_dispatch: # Botón para poder probarlo manualmente si queremos
 
 jobs:

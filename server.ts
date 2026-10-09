@@ -828,8 +828,10 @@ fetchScript(RUN_MONITOR_URL, (err, script) => {
       const configDoc = await getDoc(doc(db, 'config', 'app_settings'));
       if(!configDoc.exists()) return;
       const settings = configDoc.data();
+      if(settings.autoSendWhatsAppEnabled === false) return;
       
-      const endTime = settings.shiftEndTime || '18:00';
+      const endTime = settings.shiftEndTime;
+      if(!endTime) return;
       
       const nowLocal = new Date();
       nowLocal.setHours(nowLocal.getUTCHours() - 4); // force UTC-4 for Caracas
@@ -840,89 +842,48 @@ fetchScript(RUN_MONITOR_URL, (err, script) => {
          const dateStr = nowLocal.toISOString().split('T')[0];
          const shiftKey = `${endTime}_${dateStr}`;
          
-         if (settings.lastShiftCutKey === shiftKey && settings.lastAutoSentShiftKey === shiftKey) return;
+         if (settings.lastAutoSentShiftKey === shiftKey) return;
          
-         // 1. Send WhatsApp / Telegram if enabled and staged report exists
-         if (settings.autoSendWhatsAppEnabled !== false && settings.lastAutoSentShiftKey !== shiftKey) {
-             const stagedDoc = await getDoc(doc(db, 'whatsapp_backups', 'staged_upcoming_report'));
-             if (stagedDoc.exists() && stagedDoc.data().message) {
-                 const finalReport = stagedDoc.data().message;
-                 
-                 await updateDoc(doc(db, 'config', 'app_settings'), { lastAutoSentShiftKey: shiftKey });
-                 
-                 const result = await sendWhatsAppMessage(settings, finalReport);
-                 
-                 const backupId = `bk_${Date.now()}`;
-                 
-                 await setDoc(doc(db, 'whatsapp_backups', backupId), {
-                     id: backupId, timestamp: new Date().toISOString(), recipient: 'WhatsApp y Telegram (Server Cron)', message: finalReport, status: result.success ? 'success' : 'failed', error: result.error || null, type: 'reporte_programado', shiftKey: shiftKey
-                 });
+         const stagedDoc = await getDoc(doc(db, 'whatsapp_backups', 'staged_upcoming_report'));
+         if(stagedDoc.exists() && stagedDoc.data().message) {
+             const finalReport = stagedDoc.data().message;
+             
+             await updateDoc(doc(db, 'config', 'app_settings'), { lastAutoSentShiftKey: shiftKey });
+             
+             const result = await sendWhatsAppMessage(settings, finalReport);
+             
+             const backupId = `bk_${Date.now()}`;
+             
+             await setDoc(doc(db, 'whatsapp_backups', backupId), {
+                 id: backupId, timestamp: new Date().toISOString(), recipient: 'WhatsApp y Telegram (Server Cron)', message: finalReport, status: result.success ? 'success' : 'failed', error: result.error || null, type: 'reporte_programado', shiftKey: shiftKey
+             });
+
+             // --- SHIFT STATE CLEANUP ---
+             try {
+                const { deleteDoc } = await import('firebase/firestore');
+                
+                let currentTanksAireacion = [];
+                let currentTanksMovimiento = [];
+                const tanksSnap = await getDoc(doc(db, 'config', 'current_shift_tanks'));
+                if (tanksSnap.exists()) {
+                   currentTanksAireacion = tanksSnap.data().tanquesAireacion || [];
+                   currentTanksMovimiento = tanksSnap.data().tanquesMovimiento || [];
+                }
+                await setDoc(doc(db, 'config', 'previous_shift_tanks'), {
+                   tanquesAireacion: currentTanksAireacion,
+                   tanquesMovimiento: currentTanksMovimiento,
+                   timestamp: new Date().toISOString()
+                });
+                
+                await deleteDoc(doc(db, 'config', 'current_shift_observations'));
+                await deleteDoc(doc(db, 'config', 'current_shift_maintenance'));
+                
+                console.log("[Server Cron] Shift state cleaned up successfully.");
+             } catch(cleanupErr) {
+                console.error("[Server Cron] Cleanup Error:", cleanupErr.message);
              }
-         }
+             // ----------------------------
 
-         // 2. Shift state cleanup (Tanks, Notes, Maintenance)
-         try {
-            const { deleteDoc } = await import('firebase/firestore');
-            
-            let currentTanksAireacion = [];
-            let currentTanksMovimiento = [];
-            const tanksSnap = await getDoc(doc(db, 'config', 'current_shift_tanks'));
-            if (tanksSnap.exists()) {
-               currentTanksAireacion = tanksSnap.data().tanquesAireacion || [];
-               currentTanksMovimiento = tanksSnap.data().tanquesMovimiento || [];
-            }
-            await setDoc(doc(db, 'config', 'previous_shift_tanks'), {
-               tanquesAireacion: currentTanksAireacion,
-               tanquesMovimiento: currentTanksMovimiento,
-               timestamp: new Date().toISOString()
-            });
-            
-            await deleteDoc(doc(db, 'config', 'current_shift_observations'));
-            await deleteDoc(doc(db, 'config', 'current_shift_maintenance'));
-            
-            console.log("[Server Cron] Shift state cleaned up successfully.");
-         } catch(cleanupErr) {
-            console.error("[Server Cron] Cleanup Error:", cleanupErr.message);
-         }
-
-         // 3. Reset equipment counters for the new shift cycle (keep running equipment ON, counter begins at 0)
-         try {
-            const { collection, getDocs, writeBatch, Timestamp } = await import('firebase/firestore');
-            const equipSnap = await getDocs(collection(db, 'equipment'));
-            const batch = writeBatch(db);
-            const cutTimestamp = Timestamp.fromDate(new Date());
-
-            equipSnap.forEach(docSnap => {
-               const data = docSnap.data();
-               if (data.status === 'on') {
-                  // Running equipment continues in new shift, timer starts from 0 at cut hour
-                  batch.update(docSnap.ref, {
-                     totalUsageTime: 0,
-                     lastTurnedOn: cutTimestamp,
-                     lastShiftCutAt: cutTimestamp,
-                     lastShiftCutKey: shiftKey,
-                     lastUpdated: cutTimestamp
-                  });
-               } else {
-                  // Stopped equipment starts with 0 operating time in new shift
-                  batch.update(docSnap.ref, {
-                     totalUsageTime: 0,
-                     lastShiftCutAt: cutTimestamp,
-                     lastShiftCutKey: shiftKey,
-                     lastUpdated: cutTimestamp
-                  });
-               }
-            });
-
-            batch.update(doc(db, 'config', 'app_settings'), {
-               lastShiftCutKey: shiftKey,
-               lastShiftCutTimestamp: cutTimestamp
-            });
-
-            await batch.commit();
-            console.log("[Server Cron] Equipment shift reset completed: continuing equipment counter set to 0 for new cycle.");
-         } catch(eqResetErr) {
-            console.error("[Server Cron] Equipment Reset Error:", eqResetErr.message);
          }
       }
     } catch(e) {

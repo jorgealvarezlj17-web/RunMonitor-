@@ -14,8 +14,9 @@ export default defineConfig(({mode}) => {
         registerType: 'autoUpdate',
         includeAssets: ['icon.svg', 'app-logo.svg', 'logo.jpg', 'encendido.svg'],
         workbox: {
-          globPatterns: ['**/*.{js,css,ico,png,svg,jpg}'],
-          navigateFallback: null,
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg}'],
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api\//, /\.[a-zA-Z0-9]+$/],
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true

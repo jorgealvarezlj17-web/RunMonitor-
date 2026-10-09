@@ -118,9 +118,11 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     updateCachedProfile(null);
     if (auth.currentUser) {
       const profileRef = doc(db, 'profiles', auth.currentUser.uid);
-      setDoc(profileRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch((err) => {
-        console.warn('Error setting offline status on logout:', err);
-      });
+      try {
+        await setDoc(profileRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.error('Error setting offline status on logout:', err);
+      }
     }
     await signOut(auth);
   };

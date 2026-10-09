@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export const ConnectionStatus: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [hasPendingWrites, setHasPendingWrites] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -13,10 +14,23 @@ export const ConnectionStatus: React.FC = () => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Listen for pending writes in the equipment collection
+    const q = query(collection(db, 'equipment'), limit(1));
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+      setHasPendingWrites(snapshot.metadata.hasPendingWrites);
+    }, (error) => {
+      // Suppress benign idle stream disconnection errors
+      if (error.message.includes('Disconnecting idle stream')) {
+        return;
+      }
+      console.error('Firestore listener error:', error);
+    });
     
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      unsubscribe();
     };
   }, []);
 
@@ -39,6 +53,19 @@ export const ConnectionStatus: React.FC = () => {
             </div>
             <span className="text-[11px] font-bold tracking-tight">Offline</span>
             <WifiOff size={13} className="text-rose-600 stroke-[2.5]" />
+          </motion.div>
+        ) : hasPendingWrites ? (
+          <motion.div
+            key="syncing"
+            initial={{ opacity: 0, scale: 0.92, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 4 }}
+            transition={{ duration: 0.2 }}
+            className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 text-amber-800 border border-amber-300/80 rounded-full shadow-xs backdrop-blur-xs select-none"
+            title="Sincronizando cambios con la nube..."
+          >
+            <Loader2 size={13} className="animate-spin text-amber-600 stroke-[2.5]" />
+            <span className="text-[11px] font-bold tracking-tight">Sincronizando</span>
           </motion.div>
         ) : (
           <motion.div

@@ -327,11 +327,11 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
           <div className="flex flex-col gap-0.5">
             <div className="marquee-container relative w-full overflow-hidden" style={{ maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)' }}>
               <div className={item.name.length > 8 ? "marquee-content pl-2" : "pl-2"} style={{ animationDuration: `${Math.max(10, item.name.length * 0.8)}s` }}>
-                <h2 className="text-[13px] font-bold text-white leading-tight shrink-0 mr-8 py-0.5">
+                <h2 className="text-[13px] sm:text-sm font-bold text-white leading-tight shrink-0 mr-8 py-0.5">
                   {item.name}
                 </h2>
                 {item.name.length > 8 && (
-                  <h2 className="text-[13px] font-bold text-white leading-tight shrink-0 mr-8 py-0.5">
+                  <h2 className="text-[13px] sm:text-sm font-bold text-white leading-tight shrink-0 mr-8 py-0.5">
                     {item.name}
                   </h2>
                 )}
@@ -339,7 +339,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
             </div>
             <div className="pl-2">
               {!item.disabled && item.tiempo_operativo !== false && (
-                <CumulativeTimer equipment={item} shiftEndTime={shiftEndTime} className="text-white text-[10px] font-bold font-mono tracking-tighter" />
+                <CumulativeTimer equipment={item} shiftEndTime={shiftEndTime} className="text-white text-[10px] sm:text-xs font-bold font-mono tracking-tighter" />
               )}
             </div>
           </div>
@@ -367,7 +367,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
             onContextMenu={(e) => e.preventDefault()}
             onClick={handleClick}
             disabled={processingId === item.id}
-            className={`w-full flex items-center justify-center gap-1.5 py-3 rounded-b-[1.5rem] text-[10px] font-bold transition-all active:scale-[0.95] select-none ${
+            className={`w-full flex items-center justify-center gap-1.5 py-3 sm:py-3.5 rounded-b-[1.5rem] text-[10px] sm:text-xs font-bold transition-all active:scale-[0.95] select-none ${
               processingId === item.id
                 ? 'bg-gray-800 text-gray-400 cursor-wait'
                 : (item.status === 'on'
@@ -376,11 +376,11 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
             }`}
           >
             {processingId === item.id ? (
-              <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-3.5 h-3.5 border border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <Power size={12} />
-                <span className="mt-[-4px]">{item.status === 'on' ? 'Apagar' : 'Encender'}</span>
+                <Power size={13} />
+                <span className="mt-[-2px]">{item.status === 'on' ? 'Apagar' : 'Encender'}</span>
               </>
             )}
           </button>
@@ -506,7 +506,7 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
     <div 
       ref={setRefs} 
       style={style}
-      className={`h-40 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
+      className={`h-40 sm:h-48 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
     >
       <EquipmentCard
         item={item}
@@ -524,7 +524,17 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
   );
 });
 
-const DroppableSlot = ({ categoryId, order, children }: { categoryId: string | null, order: number, children?: React.ReactNode }) => {
+const DroppableSlot = ({ 
+  categoryId, 
+  order, 
+  isDraggingActive,
+  children 
+}: { 
+  categoryId: string | null, 
+  order: number, 
+  isDraggingActive: boolean,
+  children?: React.ReactNode 
+}) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `slot-${categoryId || 'uncategorized'}-${order}`,
     data: { type: 'slot', categoryId, order }
@@ -533,9 +543,13 @@ const DroppableSlot = ({ categoryId, order, children }: { categoryId: string | n
   return (
     <div 
       ref={setNodeRef} 
-      className={`h-40 transition-all rounded-2xl ${
-        !children ? 'border-2 border-dashed border-white/5 bg-white/[0.02]' : ''
-      } ${isOver ? 'ring-2 ring-emerald-500 bg-emerald-500/10 z-10' : ''}`}
+      className={`h-40 sm:h-48 md:h-52 transition-all rounded-2xl ${
+        !children
+          ? (isOver 
+              ? 'ring-2 ring-emerald-500 bg-emerald-50/60 border-2 border-emerald-400 z-10' 
+              : (isDraggingActive ? 'border-2 border-dashed border-slate-200/80 bg-slate-50/30' : 'bg-transparent'))
+          : (isOver ? 'ring-2 ring-emerald-500 z-10' : '')
+      }`}
     >
       {children}
     </div>
@@ -1079,9 +1093,9 @@ export const EquipmentList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
         {[1, 2, 3, 4, 5, 6].map(i => (
-          <div key={i} className="h-36 bg-white/5 animate-pulse rounded-2xl" />
+          <div key={i} className="h-40 sm:h-48 md:h-52 bg-slate-200/50 animate-pulse rounded-2xl" />
         ))}
       </div>
     );
@@ -1094,31 +1108,72 @@ export const EquipmentList: React.FC = () => {
       if (i && i.id) uniqueItemsMap.set(i.id, i);
     });
     const uniqueItems = Array.from(uniqueItemsMap.values());
-    uniqueItems.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    const slots: React.ReactNode[] = [];
-    uniqueItems.forEach((item, index) => {
-      slots.push(
-        <DroppableSlot key={`slot-${categoryId || 'uncat'}-${item.id}-${index}`} categoryId={categoryId} order={index}>
-          <DraggableEquipmentCard
-            key={`drag-${item.id}`}
-            item={item}
-            toggleStatus={toggleStatus}
-            setSelectedEquipment={setSelectedEquipment}
-            setIsEditingSelected={setIsEditingSelected}
-            setConfirmAction={setConfirmAction}
-            processingId={processingId}
-          />
-        </DroppableSlot>
-      );
+    // Map items to their specific order slots
+    const slotMap = new Map<number, Equipment>();
+    const unassigned: Equipment[] = [];
+
+    uniqueItems.forEach(item => {
+      if (typeof item.order === 'number' && item.order >= 0) {
+        if (!slotMap.has(item.order)) {
+          slotMap.set(item.order, item);
+        } else {
+          unassigned.push(item);
+        }
+      } else {
+        unassigned.push(item);
+      }
     });
 
-    const trailingOrder = uniqueItems.length;
-    slots.push(
-      <DroppableSlot key={`slot-${categoryId || 'uncat'}-empty-${trailingOrder}`} categoryId={categoryId} order={trailingOrder}>
-        {null}
-      </DroppableSlot>
-    );
+    // Place any unassigned or colliding items into first available slots
+    let nextAvailableSlot = 0;
+    unassigned.forEach(item => {
+      while (slotMap.has(nextAvailableSlot)) {
+        nextAvailableSlot++;
+      }
+      slotMap.set(nextAvailableSlot, item);
+      nextAvailableSlot++;
+    });
+
+    // Determine the highest slot index currently occupied
+    const occupiedIndices = Array.from(slotMap.keys());
+    const maxOccupiedSlot = occupiedIndices.length > 0 ? Math.max(...occupiedIndices) : -1;
+
+    // Grid has 3 columns:
+    // When idle: strictly only show up to the highest occupied row (no phantom empty row below).
+    // When dragging: dynamically provide 1 extra row below so the user can drag down.
+    const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / 3) : 0;
+    const totalRows = maxOccupiedSlot >= 0
+      ? (activeId ? highestRow + 2 : highestRow + 1)
+      : 1;
+    const totalSlots = Math.min(totalRows * 3, MAX_SLOTS);
+
+    const isDraggingActive = !!activeId;
+
+    const slots: React.ReactNode[] = [];
+    for (let slotIndex = 0; slotIndex < totalSlots; slotIndex++) {
+      const item = slotMap.get(slotIndex);
+      slots.push(
+        <DroppableSlot 
+          key={`slot-${categoryId || 'uncat'}-${slotIndex}`} 
+          categoryId={categoryId} 
+          order={slotIndex}
+          isDraggingActive={isDraggingActive}
+        >
+          {item ? (
+            <DraggableEquipmentCard
+              key={`drag-${item.id}`}
+              item={item}
+              toggleStatus={toggleStatus}
+              setSelectedEquipment={setSelectedEquipment}
+              setIsEditingSelected={setIsEditingSelected}
+              setConfirmAction={setConfirmAction}
+              processingId={processingId}
+            />
+          ) : null}
+        </DroppableSlot>
+      );
+    }
 
     return slots;
   };
@@ -1145,7 +1200,7 @@ export const EquipmentList: React.FC = () => {
                 onRename={renameCategory} 
                 onDelete={(id) => setConfirmAction({ type: 'category', id, message: '¿Eliminar esta categoría y todos sus equipos permanentemente?' })} 
               />
-              <div className="grid grid-cols-3 gap-2 p-1 items-start">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
                 {renderCategorySlots(cat.items, cat.id)}
               </div>
             </div>
@@ -1188,7 +1243,7 @@ export const EquipmentList: React.FC = () => {
                   </AnimatePresence>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 p-1 items-start">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
                 {renderCategorySlots(uncategorized, null)}
               </div>
             </div>

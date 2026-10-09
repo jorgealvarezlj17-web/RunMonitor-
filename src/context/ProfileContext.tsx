@@ -131,40 +131,6 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let unsubscribeProfile: (() => void) | undefined;
     let currentUserRef: ReturnType<typeof doc> | undefined;
 
-    const markOfflineImmediate = () => {
-      if (currentUserRef && typeof navigator !== 'undefined' && navigator.onLine) {
-        setDoc(currentUserRef, { 
-          is_online: false, 
-          last_connection: new Date().toISOString() 
-        }, { merge: true }).catch(err => {
-          console.warn('Error setting offline status:', err);
-        });
-      }
-    };
-
-    const markOnlineImmediate = () => {
-      if (currentUserRef && document.visibilityState === 'visible' && !document.hidden && typeof navigator !== 'undefined' && navigator.onLine) {
-        setDoc(currentUserRef, { 
-          is_online: true, 
-          last_connection: new Date().toISOString() 
-        }, { merge: true }).catch(err => {
-          console.warn('Error setting online status:', err);
-        });
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' || document.hidden) {
-        markOfflineImmediate();
-      } else {
-        markOnlineImmediate();
-      }
-    };
-
-    window.addEventListener('beforeunload', markOfflineImmediate);
-    window.addEventListener('pagehide', markOfflineImmediate);
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         // Cache user info immediately for offline support
@@ -184,55 +150,18 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const userEmailLower = user.email ? user.email.toLowerCase().trim() : '';
         const isAdminEmail = isMasterAdminEmail(userEmailLower);
 
-        const updatePresence = async (isViewing = true) => {
-          if (!currentUserRef) return;
-          if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-          if (document.hidden || document.visibilityState === 'hidden') {
-            return;
-          }
-          const isCurrentlyVisible = isViewing && document.visibilityState === 'visible' && !document.hidden;
-          try {
-            const updates: any = { 
-              is_online: isCurrentlyVisible, 
-              last_connection: new Date().toISOString() 
-            };
-            if (user.photoURL) {
-              updates.photo_url = user.photoURL;
-            }
-            if (user.displayName) {
-              updates.full_name = user.displayName;
-            }
-            await setDoc(currentUserRef, updates, { merge: true });
-          } catch (err) {
-            console.warn('Error updating presence:', err);
-          }
-        };
-
-        // Update online status immediately if tab is visible and online
-        if (typeof navigator !== 'undefined' && navigator.onLine && document.visibilityState === 'visible' && !document.hidden) {
-          updatePresence(true).catch(() => {});
+        // Update presence only ONCE on login/load, avoiding repetitive write loops
+        try {
+          const initialUpdates: any = { 
+            is_online: true, 
+            last_connection: new Date().toISOString() 
+          };
+          if (user.photoURL) initialUpdates.photo_url = user.photoURL;
+          if (user.displayName) initialUpdates.full_name = user.displayName;
+          setDoc(profileRef, initialUpdates, { merge: true }).catch(() => {});
+        } catch (err) {
+          console.warn('Notice setting initial profile presence:', err);
         }
-
-        // Live heartbeat every 60 seconds while user is actively looking at the app
-        const heartbeatInterval = setInterval(() => {
-          if (document.visibilityState === 'visible' && !document.hidden) {
-            updatePresence(true);
-          }
-        }, 60000);
-
-        // User activity listener for presence (throttled to 60s)
-        let lastActivityUpdate = Date.now();
-        const handleUserActivity = () => {
-          const now = Date.now();
-          if (now - lastActivityUpdate > 60000 && document.visibilityState === 'visible' && !document.hidden) {
-            lastActivityUpdate = now;
-            updatePresence(true);
-          }
-        };
-
-        window.addEventListener('pointerdown', handleUserActivity);
-        window.addEventListener('keydown', handleUserActivity);
-        window.addEventListener('touchstart', handleUserActivity);
 
         // Realtime whitelist/authorization listener for non-admin accounts
         let unsubscribeAllowedEmail: (() => void) | undefined;
@@ -355,19 +284,12 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         const originalUnsubscribeProfile = unsubscribeProfile;
         unsubscribeProfile = () => {
-          clearInterval(heartbeatInterval);
-          window.removeEventListener('pointerdown', handleUserActivity);
-          window.removeEventListener('keydown', handleUserActivity);
-          window.removeEventListener('touchstart', handleUserActivity);
           if (unsubscribeAllowedEmail) unsubscribeAllowedEmail();
           if (originalUnsubscribeProfile) originalUnsubscribeProfile();
         };
 
       } else {
-        if (currentUserRef) {
-          markOfflineImmediate();
-          currentUserRef = undefined;
-        }
+        currentUserRef = undefined;
         if (unsubscribeProfile) {
           unsubscribeProfile();
           unsubscribeProfile = undefined;
@@ -385,12 +307,6 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return () => {
       unsubscribeAuth();
-      window.removeEventListener('beforeunload', markOfflineImmediate);
-      window.removeEventListener('pagehide', markOfflineImmediate);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (currentUserRef) {
-        markOfflineImmediate();
-      }
       if (unsubscribeProfile) {
         unsubscribeProfile();
       }

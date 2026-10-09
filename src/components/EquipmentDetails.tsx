@@ -1165,12 +1165,14 @@ export const EquipmentDetails: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs sm:p-4 md:p-6" onClick={onClose}>
       <motion.div
-        initial={{ opacity: 0, x: '100%' }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: '100%' }}
-        className="w-full h-full flex flex-col max-w-2xl mx-auto bg-white text-slate-900 overflow-hidden"
+        initial={{ opacity: 0, scale: 0.96, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full h-full sm:h-auto sm:max-h-[92vh] flex flex-col max-w-2xl mx-auto bg-white text-slate-900 sm:rounded-3xl shadow-2xl overflow-hidden border sm:border-slate-200"
       >
         {/* Header */}
         <div className="p-6 flex items-center justify-between border-b border-slate-200">

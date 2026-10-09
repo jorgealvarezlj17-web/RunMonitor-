@@ -353,6 +353,29 @@ export const CorteReporte: React.FC = () => {
     isConfigModeRef.current = isConfigMode;
   }, [isConfigMode]);
 
+  const observationsDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const maintenanceDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  const saveObservationsDebounced = (text: string) => {
+    if (observationsDebounceRef.current) clearTimeout(observationsDebounceRef.current);
+    observationsDebounceRef.current = setTimeout(() => {
+      setDoc(doc(db, 'config', 'current_shift_observations'), {
+        observations: text,
+        lastUpdated: serverTimestamp()
+      }, { merge: true }).catch(e => console.error("Error saving observations:", e));
+    }, 1200);
+  };
+
+  const saveMaintenanceDebounced = (text: string) => {
+    if (maintenanceDebounceRef.current) clearTimeout(maintenanceDebounceRef.current);
+    maintenanceDebounceRef.current = setTimeout(() => {
+      setDoc(doc(db, 'config', 'current_shift_maintenance'), {
+        records: text,
+        lastUpdated: serverTimestamp()
+      }, { merge: true }).catch(e => console.error("Error saving maintenance:", e));
+    }, 1200);
+  };
+
   const [availableTanks, setAvailableTanks] = useState<string[]>(() => {
     const saved = localStorage.getItem('plantAvailableTanks');
     if (saved) {
@@ -1222,12 +1245,16 @@ export const CorteReporte: React.FC = () => {
                   const newValue = e.target.value;
                   setObservations(newValue);
                   if (!isReadOnly) {
+                    saveObservationsDebounced(newValue);
+                  }
+                }}
+                onBlur={() => {
+                  if (!isReadOnly) {
+                    if (observationsDebounceRef.current) clearTimeout(observationsDebounceRef.current);
                     setDoc(doc(db, 'config', 'current_shift_observations'), {
-                      observations: newValue,
+                      observations,
                       lastUpdated: serverTimestamp()
-                    }, { merge: true }).catch(e => {
-                      console.error("Error saving observations:", e);
-                    });
+                    }, { merge: true }).catch(e => console.error("Error saving observations:", e));
                   }
                 }}
                 disabled={isReadOnly}
@@ -1269,12 +1296,16 @@ export const CorteReporte: React.FC = () => {
                     const newValue = e.target.value;
                     setMaintenanceRecords(newValue);
                     if (!isReadOnly) {
+                      saveMaintenanceDebounced(newValue);
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!isReadOnly) {
+                      if (maintenanceDebounceRef.current) clearTimeout(maintenanceDebounceRef.current);
                       setDoc(doc(db, 'config', 'current_shift_maintenance'), {
-                        records: newValue,
+                        records: maintenanceRecords,
                         lastUpdated: serverTimestamp()
-                      }, { merge: true }).catch(e => {
-                        console.error("Error saving maintenance records:", e);
-                      });
+                      }, { merge: true }).catch(e => console.error("Error saving maintenance records:", e));
                     }
                   }}
                   disabled={isReadOnly}

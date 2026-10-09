@@ -50,7 +50,12 @@ export default function App() {
   });
   const [forcedEnter, setForcedEnter] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false;
+  });
   const [shiftStartTime, setShiftStartTime] = useState('18:00');
   const { profile, loading: profileLoading } = useProfile();
 
@@ -74,26 +79,6 @@ export default function App() {
       // Storage access protected in iframe
     }
   }, []);
-
-  useEffect(() => {
-    if (!user || !isMasterAdminEmail(user.email)) return;
-    // Clean up admin emails from whitelist since they bypass it programmatically
-    const cleanupAdminEmails = async () => {
-      try {
-        const admins = ['jorgealvarez.lj17@gmail.com', 'j.alvarez.lj17@gmail.com'];
-        for (const admin of admins) {
-          const adminRef = doc(db, 'allowed_emails', admin);
-          const snap = await getDoc(adminRef);
-          if (snap.exists()) {
-            await deleteDoc(adminRef);
-          }
-        }
-      } catch (error) {
-        console.warn('Notice cleaning up admin emails:', error);
-      }
-    };
-    cleanupAdminEmails();
-  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -354,7 +339,7 @@ export default function App() {
             <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
               {/* Barra superior 100% FIJA (Fixed Header) */}
               <div className={`fixed top-0 right-0 left-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.06)] transition-all duration-300 ${isSidebarOpen ? 'lg:left-64' : 'lg:left-20'}`}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between relative">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between relative">
                   {/* Botón de Menú a la izquierda */}
                   <div className="flex items-center">
                     <button 
@@ -395,7 +380,7 @@ export default function App() {
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: -20, scale: 0.98 }}
                       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      className="space-y-10"
+                      className="max-w-5xl mx-auto space-y-8 pb-16 w-full"
                     >
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
@@ -411,10 +396,8 @@ export default function App() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2">
-                          <EquipmentList />
-                        </div>
+                      <div className="w-full">
+                        <EquipmentList />
                       </div>
                     </motion.div>
                   ) : activeTab === 'registro' ? (

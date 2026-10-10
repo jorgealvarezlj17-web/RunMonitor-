@@ -514,7 +514,7 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
     <div 
       ref={setRefs} 
       style={style}
-      className={`h-40 sm:h-48 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
+      className={`h-32 sm:h-44 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
     >
       <EquipmentCard
         item={item}
@@ -551,7 +551,7 @@ const DroppableSlot = ({
   return (
     <div 
       ref={setNodeRef} 
-      className={`h-40 sm:h-48 md:h-52 transition-all rounded-2xl ${
+      className={`h-32 sm:h-44 md:h-52 transition-all rounded-2xl ${
         !children
           ? (isOver 
               ? 'ring-2 ring-emerald-500 bg-emerald-50/60 border-2 border-emerald-400 z-10' 
@@ -703,16 +703,21 @@ export const EquipmentList: React.FC = () => {
         try {
           const batch = writeBatch(db);
           
-          // Swap positions directly to preserve empty spaces
+          const activeOrder = activeItem.order ?? 0;
+          const activeCategory = activeItem.categoryId ?? null;
+          const targetOrder = targetItem.order ?? 0;
+          const targetCategory = targetItem.categoryId ?? null;
+
+          // Swap positions properly
           batch.update(doc(db, 'equipment', activeItem.id), {
-            categoryId: targetItem.categoryId || null,
-            order: targetItem.order || 0,
+            categoryId: targetCategory,
+            order: targetOrder,
             lastUpdated: serverTimestamp()
           });
 
           batch.update(doc(db, 'equipment', targetItem.id), {
-            categoryId: activeItem.categoryId || null,
-            order: activeItem.order || 0,
+            categoryId: activeCategory,
+            order: activeOrder,
             lastUpdated: serverTimestamp()
           });
 
@@ -1188,16 +1193,13 @@ export const EquipmentList: React.FC = () => {
     const occupiedIndices = Array.from(slotMap.keys());
     const maxOccupiedSlot = occupiedIndices.length > 0 ? Math.max(...occupiedIndices) : -1;
 
-    // Grid columns based on screen size:
-    // When idle: strictly only show up to the highest occupied row (no phantom empty row below).
-    // When dragging: dynamically provide 1 extra row below so the user can drag down.
     const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / cols) : 0;
-    const totalRows = maxOccupiedSlot >= 0
-      ? (activeId ? highestRow + 2 : highestRow + 1)
-      : 1;
-    const totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
-
     const isDraggingActive = !!activeId;
+
+    // When not dragging, only render rows needed for actual items (zero excess whitespace)
+    const rowsNeeded = Math.max(1, Math.ceil(uniqueItems.length / cols));
+    const totalRows = isDraggingActive ? Math.max(highestRow + 2, rowsNeeded + 1) : rowsNeeded;
+    const totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
 
     const slots: React.ReactNode[] = [];
     for (let slotIndex = 0; slotIndex < totalSlots; slotIndex++) {

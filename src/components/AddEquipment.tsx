@@ -199,8 +199,18 @@ export const AddEquipment: React.FC<{ onAdded: () => void }> = ({ onAdded }) => 
         categoryId = categoryRef.id;
       }
 
-      // Use timestamp for ordering to avoid blocking query
-      const orderValue = Date.now();
+      // Compute sequential order for the selected category
+      const eqSnapshot = await getDocs(query(collection(db, 'equipment')));
+      let maxOrder = -1;
+      eqSnapshot.docs.forEach(d => {
+        const data = d.data();
+        if ((data.categoryId || null) === (categoryId || null)) {
+          if (typeof data.order === 'number' && data.order > maxOrder) {
+            maxOrder = data.order;
+          }
+        }
+      });
+      const orderValue = maxOrder + 1;
 
       const equipmentRef = doc(collection(db, 'equipment'));
       const equipmentData = {

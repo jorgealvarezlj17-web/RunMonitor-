@@ -212,7 +212,7 @@ const TankGrid: React.FC<TankGridProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 max-h-[340px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
+        className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 sm:gap-6 max-h-[480px] overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
       >
         {TANK_NUMBERS.filter(num => {
           const id = `T${String(num).padStart(3, '0')}`;

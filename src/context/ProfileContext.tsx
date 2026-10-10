@@ -72,16 +72,39 @@ export const isMasterAdminEmail = (email: string | null | undefined): boolean =>
 };
 
 interface ProfileContextType {
+  user: any | null;
   profile: Profile | null;
   loading: boolean;
   logout: () => Promise<void>;
 }
 
-const ProfileContext = createContext<ProfileContextType>({ profile: null, loading: true, logout: async () => {} });
+const ProfileContext = createContext<ProfileContextType>({ user: null, profile: null, loading: true, logout: async () => {} });
 
 export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<any | null>(() => {
+    try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('auth_revoked_reason')) {
+        localStorage.removeItem('cached_auth_user');
+        localStorage.removeItem('cached_user_profile');
+        return null;
+      }
+      const cached = localStorage.getItem('cached_auth_user');
+      if (!cached) return null;
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.is_authorized) {
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
   const [profile, setProfile] = useState<Profile | null>(() => {
     try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('auth_revoked_reason')) {
+        return null;
+      }
       const cached = localStorage.getItem('cached_user_profile');
       return cached ? JSON.parse(cached) : null;
     } catch {
@@ -115,6 +138,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.removeItem('cached_auth_user');
       localStorage.removeItem('cached_user_profile');
     } catch {}
+    setUser(null);
     updateCachedProfile(null);
     if (auth.currentUser) {
       const profileRef = doc(db, 'profiles', auth.currentUser.uid);
@@ -131,24 +155,76 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let unsubscribeProfile: (() => void) | undefined;
     let currentUserRef: ReturnType<typeof doc> | undefined;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Cache user info immediately for offline support
+    const unsubscribeAuth = onAuthStateChanged(auth, async (incomingUser) => {
+      if (incomingUser) {
+        const userEmailLower = incomingUser.email ? incomingUser.email.toLowerCase().trim() : '';
+        const isAdminEmail = isMasterAdminEmail(userEmailLower);
+
+        // STAGE 1: GATEWAY SECURITY CHECK
+        // If not master admin, verify against allowed_emails BEFORE touching user state, cache, or presence!
+        if (!isAdminEmail) {
+          if (!userEmailLower) {
+            console.warn('[Security] Unauthorized attempt: User has no email.');
+            sessionStorage.setItem('auth_revoked_reason', 'No registrado');
+            localStorage.removeItem('cached_auth_user');
+            localStorage.removeItem('cached_user_profile');
+            setUser(null);
+            updateCachedProfile(null);
+            setLoading(false);
+            await signOut(auth);
+            return;
+          }
+
+          try {
+            const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
+            const allowedSnap = await getDoc(allowedDocRef);
+            if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
+              console.warn('[Security] Unauthorized email attempting access:', userEmailLower);
+              sessionStorage.setItem('auth_revoked_reason', 'No registrado');
+              localStorage.removeItem('cached_auth_user');
+              localStorage.removeItem('cached_user_profile');
+              setUser(null);
+              updateCachedProfile(null);
+              setLoading(false);
+              await signOut(auth);
+              return;
+            }
+          } catch (err) {
+            const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+            const cachedAuth = localStorage.getItem('cached_auth_user');
+            if (isOffline && cachedAuth) {
+              // Valid offline verified session
+            } else {
+              console.warn('Notice checking allowed_emails (blocking access):', err);
+              sessionStorage.setItem('auth_revoked_reason', 'No registrado');
+              localStorage.removeItem('cached_auth_user');
+              localStorage.removeItem('cached_user_profile');
+              setUser(null);
+              updateCachedProfile(null);
+              setLoading(false);
+              await signOut(auth);
+              return;
+            }
+          }
+        }
+
+        // STAGE 2: ONLY AUTHORIZED USERS REACH HERE
+        // Set user state and save verified auth cache
+        setUser(incomingUser);
         try {
           localStorage.setItem('cached_auth_user', JSON.stringify({
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL
+            uid: incomingUser.uid,
+            email: incomingUser.email,
+            displayName: incomingUser.displayName,
+            photoURL: incomingUser.photoURL,
+            is_authorized: true
           }));
         } catch (e) {
           console.warn('Error caching auth user:', e);
         }
 
-        const profileRef = doc(db, 'profiles', user.uid);
+        const profileRef = doc(db, 'profiles', incomingUser.uid);
         currentUserRef = profileRef;
-        const userEmailLower = user.email ? user.email.toLowerCase().trim() : '';
-        const isAdminEmail = isMasterAdminEmail(userEmailLower);
 
         // Update presence only ONCE on login/load, avoiding repetitive write loops
         try {
@@ -156,8 +232,8 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
             is_online: true, 
             last_connection: new Date().toISOString() 
           };
-          if (user.photoURL) initialUpdates.photo_url = user.photoURL;
-          if (user.displayName) initialUpdates.full_name = user.displayName;
+          if (incomingUser.photoURL) initialUpdates.photo_url = incomingUser.photoURL;
+          if (incomingUser.displayName) initialUpdates.full_name = incomingUser.displayName;
           setDoc(profileRef, initialUpdates, { merge: true }).catch(() => {});
         } catch (err) {
           console.warn('Notice setting initial profile presence:', err);
@@ -167,57 +243,33 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         let unsubscribeAllowedEmail: (() => void) | undefined;
 
         if (!isAdminEmail) {
-          if (!userEmailLower) {
-            console.warn('[Security] User has no email.');
-            sessionStorage.setItem('auth_revoked_reason', 'No registrado');
-            updateCachedProfile(null);
-            await signOut(auth);
-            setLoading(false);
-            return;
-          } else {
-            try {
-              const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
-              const allowedSnap = await getDoc(allowedDocRef);
-              if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
-                console.warn('[Security] User email not authorized.');
-                sessionStorage.setItem('auth_revoked_reason', 'No registrado');
-                if (currentUserRef) {
-                  setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
-                }
-                updateCachedProfile(null);
-                await signOut(auth);
-                setLoading(false);
-                return;
-              }
-            } catch (err) {
-              console.warn('Notice checking allowed_emails:', err);
+          const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
+          unsubscribeAllowedEmail = onSnapshot(allowedDocRef, (allowedSnap) => {
+            // Si no hay red o el snapshot es de caché no definitivo, no revocar
+            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+              return;
+            }
+            const isFromCache = !!(allowedSnap as any)?.metadata?.fromCache;
+            if (isFromCache && !allowedSnap.exists()) {
+              return;
             }
 
-            const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
-            unsubscribeAllowedEmail = onSnapshot(allowedDocRef, (allowedSnap) => {
-              // Si no hay red o el snapshot es de caché no definitivo, no revocar
-              if (typeof navigator !== 'undefined' && !navigator.onLine) {
-                return;
+            if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
+              console.warn('[Security] User email removed or inactive. Revoking session immediately.');
+              sessionStorage.setItem('auth_revoked_reason', 'No registrado');
+              if (currentUserRef) {
+                setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
               }
-              const isFromCache = !!(allowedSnap as any)?.metadata?.fromCache;
-              if (isFromCache && !allowedSnap.exists()) {
-                return;
-              }
-
-              if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
-                console.warn('[Security] User email removed or inactive. Revoking session immediately.');
-                sessionStorage.setItem('auth_revoked_reason', 'No registrado');
-                if (currentUserRef) {
-                  setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
-                }
-                updateCachedProfile(null);
-                signOut(auth).catch((e) => console.error('Sign out error:', e));
-                return;
-              }
-            }, (err) => {
-              console.warn('Notice listening to allowed_emails status (offline/cache):', err);
-            });
-          }
+              localStorage.removeItem('cached_auth_user');
+              localStorage.removeItem('cached_user_profile');
+              setUser(null);
+              updateCachedProfile(null);
+              signOut(auth).catch((e) => console.error('Sign out error:', e));
+              return;
+            }
+          }, (err) => {
+            console.warn('Notice listening to allowed_emails status (offline/cache):', err);
+          });
         }
 
         // Listen to profile changes directly without blocking getDoc
@@ -252,7 +304,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // If server confirms doc doesn't exist, create initial profile
             if (!isSnapshotFromCache && !isOfflineNow) {
               let initialRole: 'admin' | 'operator' = isAdminEmail ? 'admin' : 'operator';
-              let initialName = user.displayName || user.email?.split('@')[0] || (isAdminEmail ? 'Administrador' : 'Operador');
+              let initialName = incomingUser.displayName || incomingUser.email?.split('@')[0] || (isAdminEmail ? 'Administrador' : 'Operador');
 
               try {
                 const allowedDoc = await getDoc(doc(db, 'allowed_emails', userEmailLower));
@@ -266,16 +318,16 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
 
               const newProfile: Profile = {
-                id: user.uid,
-                email: user.email || '',
+                id: incomingUser.uid,
+                email: incomingUser.email || '',
                 full_name: initialName,
                 role: initialRole,
                 is_synced: true,
                 is_online: document.visibilityState === 'visible' && !document.hidden,
                 last_connection: new Date().toISOString()
               };
-              if (user.photoURL) {
-                newProfile.photo_url = user.photoURL;
+              if (incomingUser.photoURL) {
+                newProfile.photo_url = incomingUser.photoURL;
               }
               
               updateCachedProfile(newProfile);
@@ -307,6 +359,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
         const hasCachedAuth = typeof window !== 'undefined' && !!localStorage.getItem('cached_auth_user');
         if (!isOffline && !hasCachedAuth) {
+          setUser(null);
           updateCachedProfile(null);
         }
         setLoading(false);
@@ -322,7 +375,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   return (
-    <ProfileContext.Provider value={{ profile, loading, logout }}>
+    <ProfileContext.Provider value={{ user, profile, loading, logout }}>
       {children}
     </ProfileContext.Provider>
   );

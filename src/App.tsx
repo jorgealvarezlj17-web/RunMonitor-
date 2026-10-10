@@ -26,23 +26,12 @@ import { AutoReportGenerator } from './components/AutoReportGenerator';
 import { BUILD_ID } from './version';
 
 export default function App() {
-  const [user, setUser] = useState<User | any | null>(() => {
-    try {
-      const cached = localStorage.getItem('cached_auth_user');
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [loading, setLoading] = useState<boolean>(() => {
-    try {
-      return !localStorage.getItem('cached_auth_user');
-    } catch {
-      return true;
-    }
-  });
+  const { user, profile, loading: profileLoading } = useProfile();
   const [authReady, setAuthReady] = useState<boolean>(() => {
     try {
+      if (typeof window !== 'undefined' && sessionStorage.getItem('auth_revoked_reason')) {
+        return true;
+      }
       return !!localStorage.getItem('cached_auth_user');
     } catch {
       return false;
@@ -57,7 +46,20 @@ export default function App() {
     return false;
   });
   const [shiftStartTime, setShiftStartTime] = useState('18:00');
-  const { profile, loading: profileLoading } = useProfile();
+
+  useEffect(() => {
+    if (!profileLoading) {
+      setAuthReady(true);
+    }
+  }, [profileLoading]);
+
+  // Fast fallback timeout for offline startup
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setAuthReady(true);
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     if (profile && profile.role !== 'admin') {
@@ -115,59 +117,6 @@ export default function App() {
       unsubscribeEquipListener();
     };
   }, [user]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    // Fast fallback timeout for offline startup
-    const timeout = setTimeout(() => {
-      if (isMounted) {
-        setAuthReady(true);
-        setLoading(false);
-      }
-    }, 1000);
-
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
-      if (isMounted) {
-        if (authUser) {
-          setUser(authUser);
-          try {
-            localStorage.setItem('cached_auth_user', JSON.stringify({
-              uid: authUser.uid,
-              email: authUser.email,
-              displayName: authUser.displayName,
-              photoURL: authUser.photoURL
-            }));
-          } catch (e) {
-            console.warn('Error caching auth user:', e);
-          }
-        } else {
-          // If offline, do NOT remove user! Preserve the offline cached session
-          const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-          if (!isOffline) {
-            setUser(null);
-            localStorage.removeItem('cached_auth_user');
-          }
-        }
-        setAuthReady(true);
-        setLoading(false);
-        clearTimeout(timeout);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-      clearTimeout(timeout);
-    };
-  }, []); // Empty dependency array ensures this runs only once on mount
-
-  // Auto-enter as soon as user or auth is confirmed
-  useEffect(() => {
-    if (authReady || user) {
-      setLoading(false);
-    }
-  }, [authReady, user]);
 
   const shouldShowSplash = !forcedEnter && !authReady;
 

@@ -1094,7 +1094,6 @@ export const CorteReporte: React.FC = () => {
       setTimeout(() => setCopied(false), 3000);
 
       // Save current shift data to Firestore to persist manual edits
-      const manualBackupId = `bk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await Promise.all([
         setDoc(doc(db, 'config', 'current_shift_observations'), {
           observations: observations,
@@ -1108,16 +1107,7 @@ export const CorteReporte: React.FC = () => {
           tanquesAireacion: validAir,
           tanquesMovimiento: validMov,
           lastUpdated: serverTimestamp()
-        }, { merge: true }),
-        setDoc(doc(db, 'whatsapp_backups', manualBackupId), {
-          id: manualBackupId,
-          timestamp: new Date().toISOString(),
-          recipient: 'Generación Manual (Corte de Turno)',
-          message: finalReport,
-          status: 'manual',
-          error: null,
-          type: 'reporte_manual'
-        })
+        }, { merge: true })
       ]);
 
       sounds.playSuccess();

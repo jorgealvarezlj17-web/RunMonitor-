@@ -1125,7 +1125,7 @@ export const EquipmentList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
         {[1, 2, 3, 4, 5, 6].map(i => (
           <div key={i} className="h-40 sm:h-48 md:h-52 bg-slate-200/50 animate-pulse rounded-2xl" />
         ))}
@@ -1232,7 +1232,7 @@ export const EquipmentList: React.FC = () => {
                 onRename={renameCategory} 
                 onDelete={(id) => setConfirmAction({ type: 'category', id, message: '¿Eliminar esta categoría y todos sus equipos permanentemente?' })} 
               />
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
                 {renderCategorySlots(cat.items, cat.id)}
               </div>
             </div>
@@ -1275,7 +1275,7 @@ export const EquipmentList: React.FC = () => {
                   </AnimatePresence>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 p-1 items-start max-w-2xl sm:max-w-3xl mx-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
                 {renderCategorySlots(uncategorized, null)}
               </div>
             </div>

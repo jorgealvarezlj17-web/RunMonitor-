@@ -170,7 +170,6 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 onClick={() => {
                   setForcedEnter(true);
-                  setLoading(false);
                 }}
                 className="px-8 py-3 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/30 active:scale-95"
               >

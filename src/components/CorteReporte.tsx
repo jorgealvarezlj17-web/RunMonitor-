@@ -212,7 +212,7 @@ const TankGrid: React.FC<TankGridProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 sm:gap-6 max-h-[480px] overflow-y-auto p-3 sm:p-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
+        className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4 sm:gap-6 max-h-[520px] overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
       >
         {TANK_NUMBERS.filter(num => {
           const id = `T${String(num).padStart(3, '0')}`;
@@ -1323,24 +1323,6 @@ export const CorteReporte: React.FC = () => {
                 />
               </div>
             
-              <TankGrid 
-                tanquesAireacion={tanquesAireacion}
-                tanquesMovimiento={tanquesMovimiento}
-                toggleTank={toggleTank}
-                isReadOnly={isReadOnly}
-                onLoadPrevious={loadPreviousTanks}
-                onClearAll={clearTanks}
-                hasPrevious={prevTanquesAireacion.length > 0 || prevTanquesMovimiento.length > 0}
-                availableTanks={availableTanks}
-                onToggleAvailableTank={toggleAvailableTank}
-                onSelectAllAvailable={selectAllAvailableTanks}
-                onDeselectAllAvailable={deselectAllAvailableTanks}
-                isConfigMode={isConfigMode}
-                setIsConfigMode={setIsConfigMode}
-                onSaveConfig={flushPlantTanks}
-                isAdmin={profile?.role === 'admin'}
-              />
-            
             <p className="text-xs text-slate-500 font-medium text-center bg-white/5 p-3 rounded-xl mt-6">
               El reporte se generará con formato limpio para WhatsApp.
             </p>
@@ -1480,6 +1462,25 @@ export const CorteReporte: React.FC = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Full-width Tank Control Grid */}
+      <TankGrid 
+        tanquesAireacion={tanquesAireacion}
+        tanquesMovimiento={tanquesMovimiento}
+        toggleTank={toggleTank}
+        isReadOnly={isReadOnly}
+        onLoadPrevious={loadPreviousTanks}
+        onClearAll={clearTanks}
+        hasPrevious={prevTanquesAireacion.length > 0 || prevTanquesMovimiento.length > 0}
+        availableTanks={availableTanks}
+        onToggleAvailableTank={toggleAvailableTank}
+        onSelectAllAvailable={selectAllAvailableTanks}
+        onDeselectAllAvailable={deselectAllAvailableTanks}
+        isConfigMode={isConfigMode}
+        setIsConfigMode={setIsConfigMode}
+        onSaveConfig={flushPlantTanks}
+        isAdmin={profile?.role === 'admin'}
+      />
 
       {/* Time Picker Modal for Custom Start/End adjustments */}
       <TimePickerModal

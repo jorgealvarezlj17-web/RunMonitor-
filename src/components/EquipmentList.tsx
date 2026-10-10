@@ -515,7 +515,7 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
     <div 
       ref={setRefs} 
       style={style}
-      className={`h-32 sm:h-44 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
+      className={`h-48 sm:h-44 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
     >
       <EquipmentCard
         item={item}
@@ -552,7 +552,7 @@ const DroppableSlot = ({
   return (
     <div 
       ref={setNodeRef} 
-      className={`h-32 sm:h-44 md:h-52 transition-all rounded-2xl ${
+      className={`h-48 sm:h-44 md:h-52 transition-all rounded-2xl ${
         !children
           ? (isOver 
               ? 'ring-2 ring-emerald-500 bg-emerald-50/60 border-2 border-emerald-400 z-10' 
@@ -1147,7 +1147,7 @@ export const EquipmentList: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
+      <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
         {[1, 2, 3, 4, 5, 6].map(i => (
           <div key={i} className="h-40 sm:h-48 md:h-52 bg-slate-200/50 animate-pulse rounded-2xl" />
         ))}
@@ -1197,10 +1197,15 @@ export const EquipmentList: React.FC = () => {
     const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / cols) : 0;
     const isDraggingActive = !!activeId;
 
-    // When not dragging or dragging, ensure totalRows covers occupied slots and items
-    const rowsNeeded = Math.max(1, Math.ceil(uniqueItems.length / cols));
-    const totalRows = Math.max(1, highestRow + 1, isDraggingActive ? rowsNeeded + 1 : rowsNeeded);
-    const totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
+    let totalSlots;
+    if (isDraggingActive) {
+      const rowsNeeded = Math.max(1, Math.ceil(uniqueItems.length / cols));
+      const totalRows = Math.max(1, highestRow + 1, rowsNeeded);
+      totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
+    } else {
+      // When not dragging, minimize empty slots to reduce whitespace
+      totalSlots = Math.max(1, uniqueItems.length);
+    }
 
     const slots: React.ReactNode[] = [];
     for (let slotIndex = 0; slotIndex < totalSlots; slotIndex++) {
@@ -1252,7 +1257,7 @@ export const EquipmentList: React.FC = () => {
                 onRename={renameCategory} 
                 onDelete={(id) => setConfirmAction({ type: 'category', id, message: '¿Eliminar esta categoría y todos sus equipos permanentemente?' })} 
               />
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
                 {renderCategorySlots(cat.items, cat.id)}
               </div>
             </div>
@@ -1295,7 +1300,7 @@ export const EquipmentList: React.FC = () => {
                   </AnimatePresence>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
                 {renderCategorySlots(uncategorized, null)}
               </div>
             </div>

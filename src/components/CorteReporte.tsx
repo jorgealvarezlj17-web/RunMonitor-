@@ -41,6 +41,7 @@ import { es } from 'date-fns/locale';
 import { OperationType, handleFirestoreError } from '../utils/firestoreError';
 import { useProfile } from '../context/ProfileContext';
 import { sounds } from '../utils/sounds';
+import { useDeviceDetection } from '../utils/useDeviceDetection';
 
 interface LogEntry {
   id: string;
@@ -91,6 +92,7 @@ const TankGrid: React.FC<TankGridProps> = ({
   const TANK_NUMBERS = Array.from({ length: 60 }, (_, i) => i + 1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const device = useDeviceDetection();
 
   useEffect(() => {
     const savedScroll = sessionStorage.getItem('tankGridScrollPos');
@@ -212,7 +214,10 @@ const TankGrid: React.FC<TankGridProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4 sm:gap-6 max-h-[520px] overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
+        className={device.isMobile 
+          ? "grid grid-cols-3 xs:grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 max-h-[520px] overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
+          : "grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4 sm:gap-6 max-h-[520px] overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent justify-items-center"
+        }
       >
         {TANK_NUMBERS.filter(num => {
           const id = `T${String(num).padStart(3, '0')}`;
@@ -230,8 +235,8 @@ const TankGrid: React.FC<TankGridProps> = ({
           const isMovOn = tanquesMovimiento.includes(id);
           
           return (
-            <div key={id} id={`tank-${num}`} className={`flex flex-col items-center gap-2 transition-all duration-300 ${!isAvailable && !isConfigMode ? 'hidden' : ''}`}>
-              <div className={`relative w-24 h-24 rounded-full overflow-hidden border-4 shadow-md flex select-none transition-all ${
+            <div key={id} id={`tank-${num}`} className={`flex flex-col items-center gap-1.5 transition-all duration-300 ${!isAvailable && !isConfigMode ? 'hidden' : ''}`}>
+              <div className={`relative ${device.isMobile ? 'w-20 h-20' : 'w-24 h-24'} rounded-full overflow-hidden border-4 shadow-md flex select-none transition-all ${
                 isConfigMode
                   ? (isAvailable 
                       ? 'border-emerald-500 bg-emerald-50/70 shadow-emerald-500/20' 

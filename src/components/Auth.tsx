@@ -240,18 +240,10 @@ export const Auth: React.FC = () => {
         const allowedRef = doc(db, 'allowed_emails', emailLower);
         const allowedSnap = await getDoc(allowedRef);
         
-        if (!allowedSnap.exists()) {
+        if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
           await signOut(auth);
           throw new Error(JSON.stringify({
-            error: `Acceso restringido: El correo "${emailLower}" no está registrado en el filtro de trabajadores autorizados. Solicita al administrador que lo agregue en el Panel de Equipo.`
-          }));
-        }
-
-        const allowedData = allowedSnap.data();
-        if (allowedData?.status === 'inactive') {
-          await signOut(auth);
-          throw new Error(JSON.stringify({
-            error: `Acceso suspendido: El correo "${emailLower}" se encuentra temporalmente desactivado por el administrador.`
+            error: 'No registrado'
           }));
         }
       }
@@ -302,7 +294,16 @@ export const Auth: React.FC = () => {
       const isAdminEmail = isMasterAdminEmail(emailLower);
 
       if (isLogin) {
-        // Pre-check whitelist for non-admins if document exists
+        // Pre-check whitelist BEFORE attempting signInWithEmailAndPassword
+        if (!isAdminEmail) {
+          const allowedRef = doc(db, 'allowed_emails', emailLower);
+          const allowedSnap = await getDoc(allowedRef);
+          
+          if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
+            throw new Error(JSON.stringify({ error: 'No registrado' }));
+          }
+        }
+
         const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
         const loggedEmail = userCredential.user.email ? userCredential.user.email.toLowerCase().trim() : '';
         
@@ -310,15 +311,9 @@ export const Auth: React.FC = () => {
           const allowedRef = doc(db, 'allowed_emails', loggedEmail);
           const allowedSnap = await getDoc(allowedRef);
           
-          if (!allowedSnap.exists()) {
+          if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
             await signOut(auth);
-            throw new Error(JSON.stringify({ error: 'Acceso restringido: Este correo no está autorizado en el filtro de seguridad. Solicita al administrador que autorice tu acceso en el Panel de Equipo.' }));
-          }
-
-          const allowedData = allowedSnap.data();
-          if (allowedData?.status === 'inactive') {
-            await signOut(auth);
-            throw new Error(JSON.stringify({ error: 'Acceso suspendido: Tu cuenta se encuentra temporalmente desactivada por el administrador.' }));
+            throw new Error(JSON.stringify({ error: 'No registrado' }));
           }
         }
       } else {
@@ -337,15 +332,9 @@ export const Auth: React.FC = () => {
         if (!isAdminEmail) {
           const allowedRef = doc(db, 'allowed_emails', emailLower);
           const allowedSnap = await getDoc(allowedRef);
-          if (!allowedSnap.exists()) {
+          if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
             throw new Error(JSON.stringify({ 
-              error: 'Filtro de seguridad: Este correo no ha sido autorizado por el administrador. Solicita que agreguen tu correo en el Panel de Equipo para poder registrarte.' 
-            }));
-          }
-          const allowedData = allowedSnap.data();
-          if (allowedData?.status === 'inactive') {
-            throw new Error(JSON.stringify({ 
-              error: 'Acceso suspendido: Este correo está marcado como inactivo por el administrador.' 
+              error: 'No registrado' 
             }));
           }
         }

@@ -168,11 +168,31 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         if (!isAdminEmail) {
           if (!userEmailLower) {
-            console.warn('[Security] User has no email. Revoking session.');
-            sessionStorage.setItem('auth_revoked_reason', 'Acceso denegado: Se requiere una cuenta con correo autorizado.');
+            console.warn('[Security] User has no email.');
+            sessionStorage.setItem('auth_revoked_reason', 'No registrado');
             updateCachedProfile(null);
-            signOut(auth).catch((e) => console.error('Sign out error:', e));
+            await signOut(auth);
+            setLoading(false);
+            return;
           } else {
+            try {
+              const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
+              const allowedSnap = await getDoc(allowedDocRef);
+              if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
+                console.warn('[Security] User email not authorized.');
+                sessionStorage.setItem('auth_revoked_reason', 'No registrado');
+                if (currentUserRef) {
+                  setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
+                }
+                updateCachedProfile(null);
+                await signOut(auth);
+                setLoading(false);
+                return;
+              }
+            } catch (err) {
+              console.warn('Notice checking allowed_emails:', err);
+            }
+
             const allowedDocRef = doc(db, 'allowed_emails', userEmailLower);
             unsubscribeAllowedEmail = onSnapshot(allowedDocRef, (allowedSnap) => {
               // Si no hay red o el snapshot es de caché no definitivo, no revocar
@@ -184,21 +204,9 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 return;
               }
 
-              if (!allowedSnap.exists()) {
-                console.warn('[Security] User email removed from allowed_emails whitelist. Revoking session immediately.');
-                sessionStorage.setItem('auth_revoked_reason', 'Acceso revocado: Tu correo fue eliminado de la lista de personal autorizado.');
-                if (currentUserRef) {
-                  setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
-                }
-                updateCachedProfile(null);
-                signOut(auth).catch((e) => console.error('Sign out error:', e));
-                return;
-              }
-
-              const allowedData = allowedSnap.data();
-              if (allowedData?.status === 'inactive') {
-                console.warn('[Security] User email status set to inactive. Revoking session immediately.');
-                sessionStorage.setItem('auth_revoked_reason', 'Acceso suspendido: Tu cuenta ha sido desactivada temporalmente por el administrador.');
+              if (!allowedSnap.exists() || allowedSnap.data()?.status === 'inactive') {
+                console.warn('[Security] User email removed or inactive. Revoking session immediately.');
+                sessionStorage.setItem('auth_revoked_reason', 'No registrado');
                 if (currentUserRef) {
                   setDoc(currentUserRef, { is_online: false, last_connection: new Date().toISOString() }, { merge: true }).catch(() => {});
                 }

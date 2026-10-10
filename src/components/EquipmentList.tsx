@@ -569,9 +569,32 @@ const DroppableSlot = ({
 export const EquipmentList: React.FC = () => {
   const { profile } = useProfile();
   const isReadOnly = profile?.is_synced === false;
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [equipment, setEquipment] = useState<Equipment[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_equipment');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      { id: 'eq-1', name: 'Generador Maternidad', status: 'off', categoryId: null, order: 0, hours: 0, totalUsageTime: 0 },
+      { id: 'eq-2', name: 'Generador Campamento', status: 'off', categoryId: null, order: 1, hours: 0, totalUsageTime: 0 },
+      { id: 'eq-3', name: 'Generador Subestación Eléctrica', status: 'off', categoryId: null, order: 2, hours: 0, totalUsageTime: 0 },
+      { id: 'eq-4', name: 'Bomba Principal', status: 'off', categoryId: null, order: 3, hours: 0, totalUsageTime: 0 },
+    ];
+  });
+  const [categories, setCategories] = useState<Category[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_categories');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
   const [shiftEndTime, setShiftEndTime] = useState('18:00');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [isEditingSelected, setIsEditingSelected] = useState(false);
@@ -726,13 +749,6 @@ export const EquipmentList: React.FC = () => {
   }, [selectedEquipment]);
 
   useEffect(() => {
-    const cachedAuth = typeof window !== 'undefined' ? localStorage.getItem('cached_auth_user') : null;
-    const hasUser = !!auth.currentUser || !!cachedAuth || !!profile;
-    if (!hasUser) {
-      setLoading(false);
-      return;
-    }
-
     // Fallback timeout for loading state
     const timeout = setTimeout(() => {
       if (loading) setLoading(false);
@@ -762,7 +778,12 @@ export const EquipmentList: React.FC = () => {
       });
       const items = Array.from(itemsMap.values());
       items.sort((a, b) => (a.order || 0) - (b.order || 0));
-      setEquipment(items);
+      if (items.length > 0) {
+        setEquipment(items);
+        try {
+          localStorage.setItem('cached_equipment', JSON.stringify(items));
+        } catch (e) {}
+      }
       setLoading(false);
       clearTimeout(timeout);
     }, (error) => {
@@ -778,6 +799,9 @@ export const EquipmentList: React.FC = () => {
       })) as Category[];
       cats.sort((a, b) => (a.order || 0) - (b.order || 0));
       setCategories(cats);
+      try {
+        localStorage.setItem('cached_categories', JSON.stringify(cats));
+      } catch (e) {}
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'categories');
     });

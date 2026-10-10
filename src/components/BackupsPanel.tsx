@@ -310,7 +310,9 @@ export const BackupsPanel: React.FC = () => {
             Respaldos
           </h2>
           <p className="text-slate-600 font-medium text-sm">
-            Historial centralizado de reportes automáticos, manuales y copias de seguridad de envíos
+            {isAdmin 
+              ? 'Historial centralizado de reportes automáticos, manuales y copias de seguridad de envíos'
+              : 'Registros y reportes enviados a WhatsApp con opción a copiar el mensaje completo'}
           </p>
         </div>
 
@@ -378,90 +380,92 @@ export const BackupsPanel: React.FC = () => {
       </AnimatePresence>
 
       {/* Tarjeta de Borrador en Vivo / Staged Upcoming Report */}
-      {stagedBackup ? (
-        <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl border border-amber-200 text-sm space-y-3 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500 text-white flex items-center gap-1 shadow-xs">
-                ⚡ Borrador en Vivo
-              </span>
-              <span className="text-xs text-amber-900 font-bold">
-                Corte programado: {config.shiftEndTime || '18:00'}
-              </span>
-              <span className="text-[11px] text-amber-700 font-medium bg-amber-100/60 px-2 py-0.5 rounded-md">
-                Sincronizado con Panel de Registro
-              </span>
+      {isAdmin && (
+        stagedBackup ? (
+          <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl border border-amber-200 text-sm space-y-3 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-amber-500 text-white flex items-center gap-1 shadow-xs">
+                  ⚡ Borrador en Vivo
+                </span>
+                <span className="text-xs text-amber-900 font-bold">
+                  Corte programado: {config.shiftEndTime || '18:00'}
+                </span>
+                <span className="text-[11px] text-amber-700 font-medium bg-amber-100/60 px-2 py-0.5 rounded-md">
+                  Sincronizado con Panel de Registro
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRefreshDraft}
+                  disabled={isRefreshingDraft}
+                  className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+                  title="Recalcular con los datos más recientes del panel de registro"
+                >
+                  <RefreshCw size={13} className={isRefreshingDraft ? 'animate-spin' : ''} />
+                  <span>{isRefreshingDraft ? 'Actualizando...' : 'Actualizar Borrador'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendStagedNow}
+                  disabled={resendingId === 'staged_upcoming_report'}
+                  className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+                  title="Enviar borrador a WhatsApp inmediatamente"
+                >
+                  {resendingId === 'staged_upcoming_report' ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                  <span>Enviar Ahora</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCopyBackup(stagedBackup)}
+                  className="h-8 px-3 bg-white border border-amber-200 text-amber-900 hover:bg-amber-100/60 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
+                  title="Copiar texto del borrador"
+                >
+                  {copiedId === stagedBackup.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  <span>{copiedId === stagedBackup.id ? 'Copiado' : 'Copiar'}</span>
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleRefreshDraft}
-                disabled={isRefreshingDraft}
-                className="h-8 px-3 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
-                title="Recalcular con los datos más recientes del panel de registro"
-              >
-                <RefreshCw size={13} className={isRefreshingDraft ? 'animate-spin' : ''} />
-                <span>{isRefreshingDraft ? 'Actualizando...' : 'Actualizar Borrador'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSendStagedNow}
-                disabled={resendingId === 'staged_upcoming_report'}
-                className="h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
-                title="Enviar borrador a WhatsApp inmediatamente"
-              >
-                {resendingId === 'staged_upcoming_report' ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-                <span>Enviar Ahora</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleCopyBackup(stagedBackup)}
-                className="h-8 px-3 bg-white border border-amber-200 text-amber-900 hover:bg-amber-100/60 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
-                title="Copiar texto del borrador"
-              >
-                {copiedId === stagedBackup.id ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                <span>{copiedId === stagedBackup.id ? 'Copiado' : 'Copiar'}</span>
-              </button>
+            <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto select-all">
+              {stagedBackup.message}
             </div>
-          </div>
 
-          <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800 whitespace-pre-wrap leading-relaxed max-h-56 overflow-y-auto select-all">
-            {stagedBackup.message}
+            {resendStatus && resendStatus.id === 'staged_upcoming_report' && (
+              <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                resendStatus.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {resendStatus.success ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                <span>{resendStatus.message}</span>
+              </div>
+            )}
           </div>
-
-          {resendStatus && resendStatus.id === 'staged_upcoming_report' && (
-            <div className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-              resendStatus.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}>
-              {resendStatus.success ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
-              <span>{resendStatus.message}</span>
+        ) : (
+          <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl border border-amber-200 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md text-xs font-black bg-amber-500 text-white">⚡ Borrador en Vivo</span>
+                Borrador del Turno Actual
+              </h3>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Genera la previsualización del reporte con los datos y estados del Panel de Registro.
+              </p>
             </div>
-          )}
-        </div>
-      ) : (
-        <div className="p-5 bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-2xl border border-amber-200 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-          <div>
-            <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md text-xs font-black bg-amber-500 text-white">⚡ Borrador en Vivo</span>
-              Borrador del Turno Actual
-            </h3>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Genera la previsualización del reporte con los datos y estados del Panel de Registro.
-            </p>
+            <button
+              type="button"
+              onClick={handleRefreshDraft}
+              disabled={isRefreshingDraft}
+              className="h-9 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 active:scale-95"
+            >
+              <RefreshCw size={14} className={isRefreshingDraft ? 'animate-spin' : ''} />
+              <span>{isRefreshingDraft ? 'Generando...' : 'Generar Borrador'}</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleRefreshDraft}
-            disabled={isRefreshingDraft}
-            className="h-9 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-2 active:scale-95"
-          >
-            <RefreshCw size={14} className={isRefreshingDraft ? 'animate-spin' : ''} />
-            <span>{isRefreshingDraft ? 'Generando...' : 'Generar Borrador'}</span>
-          </button>
-        </div>
+        )
       )}
 
       {/* Barra de Filtro y Búsqueda */}
@@ -590,20 +594,22 @@ export const BackupsPanel: React.FC = () => {
                       <span>{copiedId === bk.id ? 'Copiado' : 'Copiar'}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleResendBackup(bk)}
-                      disabled={resendingId === bk.id}
-                      className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center gap-1 disabled:opacity-50 active:scale-95"
-                      title="Reenviar este reporte a WhatsApp"
-                    >
-                      {resendingId === bk.id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Send size={12} />
-                      )}
-                      <span>Reenviar</span>
-                    </button>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleResendBackup(bk)}
+                        disabled={resendingId === bk.id}
+                        className="h-7 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center gap-1 disabled:opacity-50 active:scale-95"
+                        title="Reenviar este reporte a WhatsApp"
+                      >
+                        {resendingId === bk.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Send size={12} />
+                        )}
+                        <span>Reenviar</span>
+                      </button>
+                    )}
 
                     {isAdmin && (
                       <button

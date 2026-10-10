@@ -91,9 +91,10 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const cached = localStorage.getItem('cached_auth_user');
       if (!cached) return null;
       const parsed = JSON.parse(cached);
-      if (parsed && parsed.is_authorized) {
+      if (parsed && parsed.email && isMasterAdminEmail(parsed.email)) {
         return parsed;
       }
+      // For non-admin, verify on auth state change to prevent unauthorized flash
       return null;
     } catch {
       return null;

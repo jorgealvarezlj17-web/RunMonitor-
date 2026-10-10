@@ -30,10 +30,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard },
     { id: 'registro', label: 'Panel de Registro', icon: Activity },
     { id: 'corte', label: 'Corte de Reporte', icon: ClipboardCheck },
+    { id: 'backups', label: 'Respaldos', icon: Database },
     ...(isAdmin ? [
       { id: 'stats', label: 'Estadísticas', icon: BarChart3 },
       { id: 'team', label: 'Panel de Equipo', icon: Users },
-      { id: 'backups', label: 'Respaldos', icon: Database },
       { id: 'settings', label: 'Configuración', icon: Settings },
     ] : []),
   ];

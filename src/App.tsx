@@ -388,7 +388,7 @@ export default function App() {
                     >
                       <TeamPanel />
                     </motion.div>
-                  ) : activeTab === 'backups' && profile?.role === 'admin' ? (
+                  ) : activeTab === 'backups' ? (
                     <motion.div
                       key="backups"
                       initial={{ opacity: 0, y: 20, scale: 0.98 }}

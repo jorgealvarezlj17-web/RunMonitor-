@@ -1123,6 +1123,22 @@ export const EquipmentList: React.FC = () => {
     await executeToggle(item, reason, false);
   }, [isReadOnly, processingId, isPowerOut, setPowerPromptState, executeToggle]);
 
+  const [numCols, setNumCols] = useState(3);
+
+  useEffect(() => {
+    const updateCols = () => {
+      const width = window.innerWidth;
+      if (width >= 1280) setNumCols(6); // xl
+      else if (width >= 1024) setNumCols(5); // lg
+      else if (width >= 768) setNumCols(4); // md
+      else if (width >= 640) setNumCols(3); // sm
+      else setNumCols(2); // mobile (< 640px)
+    };
+    updateCols();
+    window.addEventListener('resize', updateCols);
+    return () => window.removeEventListener('resize', updateCols);
+  }, []);
+
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1 items-start w-full">
@@ -1134,6 +1150,7 @@ export const EquipmentList: React.FC = () => {
   }
 
   const renderCategorySlots = (items: Equipment[], categoryId: string | null) => {
+    const cols = numCols;
     // Deduplicate items by ID
     const uniqueItemsMap = new Map<string, Equipment>();
     items.forEach(i => {
@@ -1171,14 +1188,14 @@ export const EquipmentList: React.FC = () => {
     const occupiedIndices = Array.from(slotMap.keys());
     const maxOccupiedSlot = occupiedIndices.length > 0 ? Math.max(...occupiedIndices) : -1;
 
-    // Grid has 3 columns:
+    // Grid columns based on screen size:
     // When idle: strictly only show up to the highest occupied row (no phantom empty row below).
     // When dragging: dynamically provide 1 extra row below so the user can drag down.
-    const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / 3) : 0;
+    const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / cols) : 0;
     const totalRows = maxOccupiedSlot >= 0
       ? (activeId ? highestRow + 2 : highestRow + 1)
       : 1;
-    const totalSlots = Math.min(totalRows * 3, MAX_SLOTS);
+    const totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
 
     const isDraggingActive = !!activeId;
 

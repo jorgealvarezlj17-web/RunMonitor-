@@ -342,7 +342,7 @@ export const BackupsPanel: React.FC = () => {
                 </div>
 
                 {/* Texto del Reporte */}
-                <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                <div className="bg-slate-50 text-slate-800 p-4 rounded-xl font-mono text-xs overflow-x-auto border border-slate-200 whitespace-pre-wrap leading-relaxed select-all">
                   {bk.message}
                 </div>
 

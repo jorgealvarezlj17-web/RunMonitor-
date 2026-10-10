@@ -15,6 +15,34 @@ export interface WhatsAppConfig {
 
 export async function saveWhatsAppBackupRecord(message: string, recipient: string, status: string, error?: string, provider?: string) {
   try {
+    if (!db) return;
+    const backupsRef = collection(db, 'whatsapp_backups');
+    const q = query(backupsRef, orderBy('timestamp', 'desc'), limit(15));
+    const snapshot = await getDocs(q);
+    
+    let existingDocId: string | null = null;
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data.message === message) {
+        const time = new Date(data.timestamp || 0).getTime();
+        if (Date.now() - time < 60000) {
+          existingDocId = docSnap.id;
+        }
+      }
+    });
+
+    if (existingDocId) {
+      await setDoc(doc(db, 'whatsapp_backups', existingDocId), {
+        timestamp: new Date().toISOString(),
+        message,
+        recipient,
+        status,
+        error: error || null,
+        provider: provider || 'unknown'
+      }, { merge: true });
+      return;
+    }
+
     const backupId = `backup_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const record = {
       id: backupId,

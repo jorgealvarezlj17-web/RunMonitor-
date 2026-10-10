@@ -63,7 +63,7 @@ export default function App() {
 
   useEffect(() => {
     if (profile && profile.role !== 'admin') {
-      if (activeTab === 'stats' || activeTab === 'settings' || activeTab === 'team' || activeTab === 'backups') {
+      if (activeTab === 'stats' || activeTab === 'settings' || activeTab === 'team') {
         setActiveTab('dashboard');
       }
     }

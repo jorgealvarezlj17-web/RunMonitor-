@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { EquipmentDetails } from './EquipmentDetails';
 import { sounds } from '../utils/sounds';
 import { DndContext, DragOverlay, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragOverEvent, DragEndEvent, useDroppable, useDraggable } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { CSS } from '@dnd-kit/utilities';
 
 const MAX_SLOTS = 30;
@@ -1196,9 +1197,9 @@ export const EquipmentList: React.FC = () => {
     const highestRow = maxOccupiedSlot >= 0 ? Math.floor(maxOccupiedSlot / cols) : 0;
     const isDraggingActive = !!activeId;
 
-    // When not dragging, only render rows needed for actual items (zero excess whitespace)
+    // When not dragging or dragging, ensure totalRows covers occupied slots and items
     const rowsNeeded = Math.max(1, Math.ceil(uniqueItems.length / cols));
-    const totalRows = isDraggingActive ? Math.max(highestRow + 2, rowsNeeded + 1) : rowsNeeded;
+    const totalRows = Math.max(1, highestRow + 1, isDraggingActive ? rowsNeeded + 1 : rowsNeeded);
     const totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
 
     const slots: React.ReactNode[] = [];
@@ -1429,9 +1430,9 @@ export const EquipmentList: React.FC = () => {
             )}
           </AnimatePresence>
         </div>
-        <DragOverlay>
+        <DragOverlay modifiers={[snapCenterToCursor]}>
           {activeId ? (
-            <div className="h-40 opacity-80">
+            <div className="h-40 opacity-90 shadow-2xl">
               <EquipmentCard
                 item={equipment.find(e => e.id === activeId)}
                 isDragging={true}

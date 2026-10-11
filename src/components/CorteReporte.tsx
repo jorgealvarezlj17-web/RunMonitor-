@@ -15,7 +15,8 @@ import {
   Loader2,
   MessageSquare,
   CalendarRange,
-  Zap
+  Zap,
+  Menu
 } from 'lucide-react';
 import { TimePickerModal } from './TimePickerModal';
 import { 
@@ -91,8 +92,17 @@ const TankGrid: React.FC<TankGridProps> = ({
 }) => {
   const TANK_NUMBERS = Array.from({ length: 60 }, (_, i) => i + 1);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(() => {
+    return sessionStorage.getItem('tankGridShowOnlyActive') === 'true';
+  });
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const device = useDeviceDetection();
+
+  const toggleShowOnlyActive = () => {
+    const nextVal = !showOnlyActive;
+    setShowOnlyActive(nextVal);
+    sessionStorage.setItem('tankGridShowOnlyActive', String(nextVal));
+  };
 
   useEffect(() => {
     const savedScroll = sessionStorage.getItem('tankGridScrollPos');
@@ -109,106 +119,117 @@ const TankGrid: React.FC<TankGridProps> = ({
     <div className="space-y-6 bg-slate-50 p-4 sm:p-6 rounded-3xl border border-slate-200 mt-8 shadow-sm">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Control de Chapaletas</h3>
-        <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider text-slate-600">
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-cyan-500 rounded-full shadow-sm"></div> Air (Aireación)</div>
-          <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-teal-500 rounded-full shadow-sm"></div> Mov (Movimiento)</div>
+        <div className="flex items-center gap-4">
+          <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-cyan-500 rounded-full shadow-sm"></div> Air (Aireación)</div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 bg-teal-500 rounded-full shadow-sm"></div> Mov (Movimiento)</div>
+          </div>
+
+          {/* 3-Line Menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-xs font-bold"
+              title="Menú de opciones"
+            >
+              <Menu size={18} />
+              <span className="hidden sm:inline">Menú</span>
+            </button>
+
+            {isMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-20" 
+                  onClick={() => setIsMenuOpen(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 py-2 animate-fadeIn">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onClearAll();
+                    }}
+                    disabled={tanquesAireacion.length === 0 && tanquesMovimiento.length === 0}
+                    className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Eraser size={14} className="text-red-500" /> Limpiar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      toggleShowOnlyActive();
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5"
+                  >
+                    <Filter size={14} className="text-teal-500" /> {showOnlyActive ? 'Ver todos los tanques' : 'Ver solo activos'}
+                  </button>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        if (isConfigMode) {
+                          onSaveConfig();
+                          setIsConfigMode(false);
+                        } else {
+                          setIsConfigMode(true);
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 border-t border-slate-100 mt-1 pt-2.5"
+                    >
+                      <Settings size={14} className="text-amber-500" /> {isConfigMode ? 'Guardar y Salir' : 'Configurar tanques físicos'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Quick Access */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Acciones Rápidas</p>
-        <div className="flex gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={onLoadPrevious}
-            disabled={!hasPrevious}
-            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 hover:border-cyan-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm active:scale-95"
-          >
-            <RefreshCw size={14} /> Cargar turno anterior
-          </button>
-          <button
-            type="button"
-            onClick={onClearAll}
-            disabled={tanquesAireacion.length === 0 && tanquesMovimiento.length === 0}
-            className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 hover:border-red-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm active:scale-95"
-          >
-            <Eraser size={14} /> Limpiar todos
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowOnlyActive(!showOnlyActive)}
-            className={`px-4 py-2 border text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm active:scale-95 ${
-              showOnlyActive 
-                ? 'bg-cyan-500 border-cyan-600 text-white' 
-                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-cyan-500/50'
-            }`}
-          >
-            <Filter size={14} /> {showOnlyActive ? 'Ver todos los tanques' : 'Ver solo activos'}
-          </button>
-          {!isReadOnly && (
+      {isConfigMode && !isReadOnly && (
+        <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
+          <div className="flex items-center gap-2.5">
+            <Settings size={20} className="text-amber-600 shrink-0" />
+            <div>
+              <span className="font-black text-amber-950 uppercase tracking-wide">
+                Configuración de Tanques Físicos
+              </span>
+              <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
+                Toca los tanques para marcarlos o desmarcarlos ({availableTanks.length} de 60 existentes). Los que desmarques no aparecerán en la lista ni en los reportes de turno.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={onSelectAllAvailable}
+              className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-[11px] font-bold rounded-xl shadow-xs transition-all active:scale-95"
+            >
+              Marcar todos
+            </button>
+            <button
+              type="button"
+              onClick={onDeselectAllAvailable}
+              className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-[11px] font-bold rounded-xl shadow-xs transition-all active:scale-95"
+            >
+              Desmarcar todos
+            </button>
             <button
               type="button"
               onClick={() => {
-                if (isConfigMode) {
-                  onSaveConfig();
-                  setIsConfigMode(false);
-                } else {
-                  setIsConfigMode(true);
-                }
+                onSaveConfig();
+                setIsConfigMode(false);
               }}
-              className={`px-4 py-2 border text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-sm active:scale-95 ${
-                isConfigMode 
-                  ? 'bg-amber-500 border-amber-600 text-white shadow-amber-500/20' 
-                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-amber-500/50'
-              }`}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
             >
-              <Settings size={14} /> {isConfigMode ? 'Guardar y Salir' : 'Configurar tanques físicos'}
+              <CheckCircle2 size={15} /> Guardar y Salir
             </button>
-          )}
-        </div>
-        {isConfigMode && !isReadOnly && (
-          <div className="mt-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-fadeIn">
-            <div className="flex items-center gap-2.5">
-              <Settings size={20} className="text-amber-600 shrink-0" />
-              <div>
-                <span className="font-black text-amber-950 uppercase tracking-wide">
-                  Configuración de Tanques Físicos
-                </span>
-                <p className="text-[11px] text-amber-800 mt-0.5 font-medium">
-                  Toca los tanques para marcarlos o desmarcarlos ({availableTanks.length} de 60 existentes). Los que desmarques no aparecerán en la lista ni en los reportes de turno.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <button
-                type="button"
-                onClick={onSelectAllAvailable}
-                className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-[11px] font-bold rounded-xl shadow-xs transition-all active:scale-95"
-              >
-                Marcar todos
-              </button>
-              <button
-                type="button"
-                onClick={onDeselectAllAvailable}
-                className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-50 text-amber-800 text-[11px] font-bold rounded-xl shadow-xs transition-all active:scale-95"
-              >
-                Desmarcar todos
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onSaveConfig();
-                  setIsConfigMode(false);
-                }}
-                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5 active:scale-95"
-              >
-                <CheckCircle2 size={15} /> Guardar y Salir
-              </button>
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Grid */}
       <div 
@@ -357,6 +378,14 @@ export const CorteReporte: React.FC = () => {
   const [maintenanceRecords, setMaintenanceRecords] = useState('');
   const [tanquesAireacion, setTanquesAireacion] = useState<string[]>([]);
   const [tanquesMovimiento, setTanquesMovimiento] = useState<string[]>([]);
+  const tanquesAireacionRef = useRef<string[]>(tanquesAireacion);
+  const tanquesMovimientoRef = useRef<string[]>(tanquesMovimiento);
+  useEffect(() => {
+    tanquesAireacionRef.current = tanquesAireacion;
+  }, [tanquesAireacion]);
+  useEffect(() => {
+    tanquesMovimientoRef.current = tanquesMovimiento;
+  }, [tanquesMovimiento]);
   const [prevTanquesAireacion, setPrevTanquesAireacion] = useState<string[]>([]);
   const [prevTanquesMovimiento, setPrevTanquesMovimiento] = useState<string[]>([]);
   
@@ -518,6 +547,7 @@ export const CorteReporte: React.FC = () => {
   };
 
   const [loading, setLoading] = useState(false);
+  const [reportStep, setReportStep] = useState<1 | 2 | 3>(1);
   const [reportText, setReportText] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -563,19 +593,25 @@ export const CorteReporte: React.FC = () => {
 
   const toggleTank = (type: 'aireacion' | 'movimiento', tankId: string) => {
     if (isReadOnly) return;
-    const currentArray = type === 'aireacion' ? tanquesAireacion : tanquesMovimiento;
+    const currentArray = type === 'aireacion' ? tanquesAireacionRef.current : tanquesMovimientoRef.current;
     const setArray = type === 'aireacion' ? setTanquesAireacion : setTanquesMovimiento;
     
     const newArray = currentArray.includes(tankId)
       ? currentArray.filter(item => item !== tankId)
       : [...currentArray, tankId];
     
+    if (type === 'aireacion') {
+      tanquesAireacionRef.current = newArray;
+    } else {
+      tanquesMovimientoRef.current = newArray;
+    }
+
     setArray(newArray);
-    
-    // Save to Firestore (debounced)
-    const newAir = type === 'aireacion' ? newArray : tanquesAireacion;
-    const newMov = type === 'movimiento' ? newArray : tanquesMovimiento;
-    persistShiftTanksDebounced(newAir, newMov);
+
+    // Save immediately to Firestore
+    const newAir = type === 'aireacion' ? newArray : tanquesAireacionRef.current;
+    const newMov = type === 'movimiento' ? newArray : tanquesMovimientoRef.current;
+    flushShiftTanks(newAir, newMov);
   };
 
   const loadPreviousTanks = () => {
@@ -688,7 +724,7 @@ export const CorteReporte: React.FC = () => {
 
   const hasAutoSentRef = useRef<string | null>(null);
 
-  const generateReport = async () => {
+  const generateReport = async (navigateToStep3 = false) => {
     if (isReadOnly) return;
     setLoading(true);
     setError(null);
@@ -874,7 +910,7 @@ export const CorteReporte: React.FC = () => {
         }
 
         if (fallas.length > 0 || cortes.length > 0) {
-          powerEventsText += `⚡ ESTADO DEL SERVICIO ELÉCTRICO\n`;
+          powerEventsText += `⚡ ESTADO DEL SERVICIO ELÉCTRICO\n\n`;
           
           const formatDuration = (mins: number) => {
             const hrs = Math.floor(mins / 60);
@@ -883,7 +919,7 @@ export const CorteReporte: React.FC = () => {
           };
 
           if (fallas.length > 0) {
-            powerEventsText += `Fallas en el servicio eléctrico: ${fallas.length}\n`;
+            powerEventsText += `⚠️ FALLAS (${fallas.length}):\n`;
             let fallasDurationMins = 0;
             fallas.forEach((falla, index) => {
               const startStr = format(falla.start, 'h:mma');
@@ -892,19 +928,16 @@ export const CorteReporte: React.FC = () => {
                 const durationMs = falla.end.getTime() - falla.start.getTime();
                 const durationMins = Math.round(durationMs / 60000);
                 fallasDurationMins += durationMins;
-                powerEventsText += `${index + 1}) ${startStr}/ ${endStr} - ${formatDuration(durationMins)}\n`;
+                powerEventsText += `   ${index + 1}) ${startStr} - ${endStr} (${formatDuration(durationMins)})\n`;
               } else {
-                powerEventsText += `${index + 1}) ${startStr}/ (Sigue interrumpido)\n`;
+                powerEventsText += `   ${index + 1}) ${startStr} - (Sigue interrumpido)\n`;
               }
             });
-            if (fallasDurationMins > 0) {
-              powerEventsText += `Duracion total de fallas: ${formatDuration(fallasDurationMins)}\n`;
-            }
-            if (cortes.length > 0) powerEventsText += `\n`;
+            powerEventsText += `   *Total tiempo en fallas: ${formatDuration(fallasDurationMins)}*\n\n`;
           }
 
           if (cortes.length > 0) {
-            powerEventsText += `Cortes en el servicio eléctrico: ${cortes.length}\n`;
+            powerEventsText += `❌ CORTES (${cortes.length}):\n`;
             let cortesDurationMins = 0;
             cortes.forEach((corte, index) => {
               const startStr = format(corte.start, 'h:mma');
@@ -913,14 +946,12 @@ export const CorteReporte: React.FC = () => {
                 const durationMs = corte.end.getTime() - corte.start.getTime();
                 const durationMins = Math.round(durationMs / 60000);
                 cortesDurationMins += durationMins;
-                powerEventsText += `${index + 1}) ${startStr}/ ${endStr} - ${formatDuration(durationMins)}\n`;
+                powerEventsText += `   ${index + 1}) ${startStr} - ${endStr} (${formatDuration(durationMins)})\n`;
               } else {
-                powerEventsText += `${index + 1}) ${startStr}/ (Sigue interrumpido)\n`;
+                powerEventsText += `   ${index + 1}) ${startStr} - (Sigue interrumpido)\n`;
               }
             });
-            if (cortesDurationMins > 0) {
-              powerEventsText += `Duracion total de cortes: ${formatDuration(cortesDurationMins)}\n`;
-            }
+            powerEventsText += `   *Total tiempo en cortes: ${formatDuration(cortesDurationMins)}*\n\n`;
           }
 
           powerEventsText += `━━━━━━━━━━━━━━━━━━━━\n`;
@@ -1116,6 +1147,9 @@ export const CorteReporte: React.FC = () => {
       ]);
 
       sounds.playSuccess();
+      if (navigateToStep3) {
+        setReportStep(3);
+      }
 
     } catch (err) {
       console.error("Detailed error generating report:", err);
@@ -1189,13 +1223,53 @@ export const CorteReporte: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Configuration Card */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="lg:col-span-5 bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl flex flex-col h-full"
-        >
+
+
+      {/* STEP 1: Control de Chapaleta */}
+      {reportStep === 1 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl space-y-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-cyan-50 text-cyan-600 rounded-2xl flex items-center justify-center">
+              <Clock size={24} />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">Control de Chapaleta</h3>
+              <p className="text-xs text-slate-500 font-medium">Selecciona los tanques en aireación y movimiento</p>
+            </div>
+          </div>
+
+          <TankGrid 
+            tanquesAireacion={tanquesAireacion}
+            tanquesMovimiento={tanquesMovimiento}
+            toggleTank={toggleTank}
+            isReadOnly={isReadOnly}
+            onLoadPrevious={loadPreviousTanks}
+            onClearAll={clearTanks}
+            hasPrevious={prevTanquesAireacion.length > 0 || prevTanquesMovimiento.length > 0}
+            availableTanks={availableTanks}
+            onToggleAvailableTank={toggleAvailableTank}
+            onSelectAllAvailable={selectAllAvailableTanks}
+            onDeselectAllAvailable={deselectAllAvailableTanks}
+            isConfigMode={isConfigMode}
+            setIsConfigMode={setIsConfigMode}
+            onSaveConfig={flushPlantTanks}
+            isAdmin={profile?.role === 'admin'}
+          />
+
+          <div className="flex justify-end pt-6 border-t border-slate-100">
+            <button
+              onClick={() => setReportStep(2)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
+            >
+              Siguiente
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* STEP 2: Datos de Turno */}
+      {reportStep === 2 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl space-y-6">
           {isReadOnly && (
             <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-amber-700 shadow-sm">
               <AlertTriangle size={20} className="shrink-0" />
@@ -1209,12 +1283,11 @@ export const CorteReporte: React.FC = () => {
             </div>
             <div>
               <h3 className="text-xl font-bold text-slate-900">Datos del Turno</h3>
-              <p className="text-xs text-slate-500 font-medium">Configura las notas operativas</p>
+              <p className="text-xs text-slate-500 font-medium">Configura las observaciones y notas operativas</p>
             </div>
           </div>
 
-          <div className="space-y-6 flex-1">
-
+          <div className="space-y-6">
             <div className="space-y-2">
               <div className="flex justify-between items-center px-1">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
@@ -1226,16 +1299,13 @@ export const CorteReporte: React.FC = () => {
                     if (isReadOnly) return;
                     setObservations('');
                     try {
-                      // Don't await for better offline support
                       setDoc(doc(db, 'config', 'current_shift_observations'), { 
                         observations: '',
                         lastUpdated: serverTimestamp()
                       }, { merge: true }).catch(e => {
                         console.error("Error clearing observations:", e);
                       });
-                    } catch (e) {
-                      console.error("Error clearing observations:", e);
-                    }
+                    } catch (e) {}
                   }}
                   className="text-[10px] font-bold text-red-500/70 hover:text-red-600 transition-colors uppercase tracking-widest flex items-center gap-1"
                 >
@@ -1251,15 +1321,6 @@ export const CorteReporte: React.FC = () => {
                     saveObservationsDebounced(newValue);
                   }
                 }}
-                onBlur={() => {
-                  if (!isReadOnly) {
-                    if (observationsDebounceRef.current) clearTimeout(observationsDebounceRef.current);
-                    setDoc(doc(db, 'config', 'current_shift_observations'), {
-                      observations,
-                      lastUpdated: serverTimestamp()
-                    }, { merge: true }).catch(e => console.error("Error saving observations:", e));
-                  }
-                }}
                 disabled={isReadOnly}
                 placeholder="Ej: Tubería con fuga en el área norte..."
                 rows={4}
@@ -1267,149 +1328,105 @@ export const CorteReporte: React.FC = () => {
               />
             </div>
             
-              <div className="space-y-2">
-                <div className="flex justify-between items-center px-1">
-                  <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                    <FileText size={14} /> Registro de Mantenimiento
-                  </label>
-                  <button 
-                    disabled={isReadOnly}
-                    onClick={() => {
-                      if (isReadOnly) return;
-                      setMaintenanceRecords('');
-                      try {
-                        setDoc(doc(db, 'config', 'current_shift_maintenance'), { 
-                          records: '',
-                          lastUpdated: serverTimestamp()
-                        }, { merge: true }).catch(e => {
-                          console.error("Error clearing maintenance records:", e);
-                        });
-                      } catch (e) {
-                        console.error("Error clearing maintenance records:", e);
-                      }
-                    }}
-                    className="text-[10px] font-bold text-red-500/70 hover:text-red-600 transition-colors uppercase tracking-widest flex items-center gap-1"
-                  >
-                    <Eraser size={12} /> Limpiar
-                  </button>
-                </div>
-                <textarea 
-                  value={maintenanceRecords}
-                  onChange={(e) => {
-                    const newValue = e.target.value;
-                    setMaintenanceRecords(newValue);
-                    if (!isReadOnly) {
-                      saveMaintenanceDebounced(newValue);
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!isReadOnly) {
-                      if (maintenanceDebounceRef.current) clearTimeout(maintenanceDebounceRef.current);
-                      setDoc(doc(db, 'config', 'current_shift_maintenance'), {
-                        records: maintenanceRecords,
-                        lastUpdated: serverTimestamp()
-                      }, { merge: true }).catch(e => console.error("Error saving maintenance records:", e));
-                    }
-                  }}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                  <FileText size={14} /> Registro de Mantenimiento
+                </label>
+                <button 
                   disabled={isReadOnly}
-                  placeholder="Ej: Mantenimiento preventivo GE1..."
-                  rows={4}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-white transition-all resize-none"
-                />
+                  onClick={() => {
+                    if (isReadOnly) return;
+                    setMaintenanceRecords('');
+                    try {
+                      setDoc(doc(db, 'config', 'current_shift_maintenance'), { 
+                        records: '',
+                        lastUpdated: serverTimestamp()
+                      }, { merge: true }).catch(e => {});
+                    } catch (e) {}
+                  }}
+                  className="text-[10px] font-bold text-red-500/70 hover:text-red-600 transition-colors uppercase tracking-widest flex items-center gap-1"
+                >
+                  <Eraser size={12} /> Limpiar
+                </button>
               </div>
-            
-            <p className="text-xs text-slate-500 font-medium text-center bg-white/5 p-3 rounded-xl mt-6">
-              El reporte se generará con formato limpio para WhatsApp.
-            </p>
+              <textarea 
+                value={maintenanceRecords}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  setMaintenanceRecords(newValue);
+                  if (!isReadOnly) {
+                    saveMaintenanceDebounced(newValue);
+                  }
+                }}
+                disabled={isReadOnly}
+                placeholder="Ej: Mantenimiento preventivo GE1..."
+                rows={4}
+                className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:bg-white transition-all resize-none"
+              />
+            </div>
           </div>
 
-          <button
-            onClick={generateReport}
-            disabled={loading || isReadOnly}
-            className={`
-              w-full mt-6 font-black py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group
-              ${copied ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20' : 'bg-cyan-500 hover:bg-cyan-400 text-white shadow-cyan-500/20'}
-            `}
-          >
-            {loading ? (
-              <RefreshCw size={24} className="animate-spin" />
-            ) : copied ? (
-              <>
-                <CheckCircle2 size={24} className="scale-110" />
-                ¡Reporte Generado!
-              </>
-            ) : (
-              <>
-                <FileText size={24} className="group-hover:scale-110 transition-transform" />
-                Generar Reporte
-              </>
-            )}
-          </button>
-
-
+          <div className="flex items-center justify-between pt-6 border-t border-slate-100">
+            <button
+              onClick={() => setReportStep(1)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => generateReport(true)}
+              disabled={loading || isReadOnly}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  <span>Generando...</span>
+                </>
+              ) : (
+                <span>Siguiente</span>
+              )}
+            </button>
+          </div>
         </motion.div>
+      )}
 
-        {/* Preview Card */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="lg:col-span-7 bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl flex flex-col h-full min-h-[600px]"
-        >
-          <div className="flex items-center justify-between mb-6">
+      {/* STEP 3: Vista Previa y Envío */}
+      {reportStep === 3 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl space-y-6">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
                 <FileText size={24} />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-900">Vista Previa WhatsApp</h3>
+                <h3 className="text-xl font-bold text-slate-900">Vista Previa y Envío</h3>
                 <p className="text-xs text-slate-500 font-medium">Revisa el formato antes de enviar al grupo</p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 bg-slate-50 rounded-2xl p-6 border border-slate-200 relative overflow-y-auto mb-4 custom-scrollbar shadow-inner">
-            <AnimatePresence mode="wait">
-              {error ? (
-                <motion.div 
-                  key="error"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="h-full flex flex-col items-center justify-center text-center p-4"
-                >
-                  <AlertCircle size={48} className="text-red-500 mb-4 opacity-50" />
-                  <p className="text-slate-600 font-medium">{error}</p>
-                </motion.div>
-              ) : reportText ? (
-                <motion.pre 
-                  key="content"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-slate-700 font-sans whitespace-pre-wrap text-sm leading-relaxed"
-                >
-                  {reportText}
-                </motion.pre>
-              ) : (
-                <motion.div 
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="h-full flex flex-col items-center justify-center text-center p-4"
-                >
-                  <FileText size={48} className="text-slate-300 mb-4" />
-                  <p className="text-slate-500 font-medium">
-                    {autoSendEnabled 
-                      ? 'El reporte se generará y enviará automáticamente al grupo cuando la cuenta regresiva llegue a cero.'
-                      : 'Configura los datos del turno y presiona "Generar Reporte".'
-                    }
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 relative overflow-y-auto max-h-[400px] custom-scrollbar shadow-inner">
+            {error ? (
+              <div className="flex flex-col items-center justify-center text-center p-4">
+                <AlertCircle size={48} className="text-red-500 mb-4 opacity-50" />
+                <p className="text-slate-600 font-medium">{error}</p>
+              </div>
+            ) : reportText ? (
+              <pre className="text-slate-700 font-sans whitespace-pre-wrap text-sm leading-relaxed">
+                {reportText}
+              </pre>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-center p-4">
+                <FileText size={48} className="text-slate-300 mb-4" />
+                <p className="text-slate-500 font-medium">No hay reporte generado aún.</p>
+              </div>
+            )}
           </div>
 
           {sendWhatsAppStatus.type !== 'idle' && (
-            <div className={`mb-4 p-3 rounded-xl border text-xs flex items-center gap-2 ${
+            <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
               sendWhatsAppStatus.type === 'success'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                 : 'bg-red-50 border-red-200 text-red-800'
@@ -1419,63 +1436,50 @@ export const CorteReporte: React.FC = () => {
             </div>
           )}
 
-          {/* Action buttons at the bottom */}
-          {reportText && (
-            <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-6 border-t border-slate-100">
+            <button
+              onClick={() => setReportStep(2)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-all"
+            >
+              Anterior
+            </button>
+
+            <div className="flex items-center gap-2">
               <button
                 onClick={manualCopy}
                 className={`
-                  w-full sm:w-1/3 py-3.5 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm border
+                  py-2.5 px-3 rounded-xl font-bold transition-all flex items-center gap-1.5 text-xs border
                   ${copied 
-                    ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-sm' 
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}
                 `}
               >
-                {copied ? <CheckCircle2 size={18} className="text-emerald-400" /> : <Copy size={18} />}
+                {copied ? <CheckCircle2 size={14} className="text-emerald-400" /> : <Copy size={14} />}
                 <span>{copied ? 'Copiado' : 'Copiar'}</span>
               </button>
 
               <button
                 onClick={() => handleSendToWhatsApp()}
                 disabled={isSendingWhatsApp}
-                className="w-full sm:w-2/3 py-3.5 px-6 rounded-xl font-black transition-all flex items-center justify-center gap-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-lg shadow-emerald-600/25 text-base disabled:opacity-50"
-                title="Enviar reporte manualmente al grupo de WhatsApp"
+                className="py-2.5 px-4 rounded-xl font-bold transition-all flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-md text-xs disabled:opacity-50"
+                title="Enviar reporte"
               >
                 {isSendingWhatsApp ? (
                   <>
-                    <Loader2 size={20} className="animate-spin" />
-                    <span>Enviando al grupo...</span>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Enviando...</span>
                   </>
                 ) : (
                   <>
-                    <Send size={20} />
-                    <span>Forzar Envío Manual</span>
+                    <Send size={14} />
+                    <span>Enviar reporte</span>
                   </>
                 )}
               </button>
             </div>
-          )}
+          </div>
         </motion.div>
-      </div>
-
-      {/* Full-width Tank Control Grid */}
-      <TankGrid 
-        tanquesAireacion={tanquesAireacion}
-        tanquesMovimiento={tanquesMovimiento}
-        toggleTank={toggleTank}
-        isReadOnly={isReadOnly}
-        onLoadPrevious={loadPreviousTanks}
-        onClearAll={clearTanks}
-        hasPrevious={prevTanquesAireacion.length > 0 || prevTanquesMovimiento.length > 0}
-        availableTanks={availableTanks}
-        onToggleAvailableTank={toggleAvailableTank}
-        onSelectAllAvailable={selectAllAvailableTanks}
-        onDeselectAllAvailable={deselectAllAvailableTanks}
-        isConfigMode={isConfigMode}
-        setIsConfigMode={setIsConfigMode}
-        onSaveConfig={flushPlantTanks}
-        isAdmin={profile?.role === 'admin'}
-      />
+      )}
 
       {/* Time Picker Modal for Custom Start/End adjustments */}
       <TimePickerModal

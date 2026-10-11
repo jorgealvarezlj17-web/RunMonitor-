@@ -74,7 +74,8 @@ export const EquipmentDetails: React.FC<{
   initialEdit?: boolean;
   onToggleStatus?: (reason?: string, registerPowerRestored?: boolean) => void;
   shiftEndTime?: string;
-}> = ({ equipment, onClose, initialEdit = false, onToggleStatus, shiftEndTime: propShiftEndTime }) => {
+  onRenameEquipment: (id: string, newName: string) => Promise<void>;
+}> = ({ equipment, onClose, initialEdit = false, onToggleStatus, shiftEndTime: propShiftEndTime, onRenameEquipment }) => {
   const [shiftEndTime, setShiftEndTime] = useState(propShiftEndTime || '18:00');
 
   useEffect(() => {
@@ -177,7 +178,7 @@ export const EquipmentDetails: React.FC<{
       });
       return () => unsubscribe();
     }
-  }, [isEditing, equipment]);
+  }, [isEditing, equipment.id]);
 
   // Manual Log State
   const [showManualModal, setShowManualModal] = useState(() => {
@@ -1086,6 +1087,10 @@ export const EquipmentDetails: React.FC<{
     if (isReadOnly || !editName.trim()) return;
     setIsSubmitting(true);
     try {
+      if (editName !== equipment.name) {
+        await onRenameEquipment(equipment.id, editName.trim());
+      }
+      
       const updateData: any = {
         name: editName,
         imageUrl: editImageUrl || null,

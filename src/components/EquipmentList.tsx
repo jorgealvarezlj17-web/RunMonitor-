@@ -515,7 +515,7 @@ const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, s
     <div 
       ref={setRefs} 
       style={style}
-      className={`h-48 sm:h-44 md:h-52 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
+      className={`h-36 sm:h-40 md:h-44 transition-all rounded-2xl ${isOver && !isDragging ? 'ring-2 ring-emerald-500 z-10' : ''}`}
     >
       <EquipmentCard
         item={item}
@@ -552,7 +552,11 @@ const DroppableSlot = ({
   return (
     <div 
       ref={setNodeRef} 
-      className={`h-48 sm:h-44 md:h-52 transition-all rounded-2xl ${
+      className={`transition-all rounded-2xl ${
+        children 
+          ? 'h-36 sm:h-40 md:h-44' 
+          : (isOver || isDraggingActive ? 'h-36 sm:h-40 md:h-44' : 'h-0')
+      } ${
         !children
           ? (isOver 
               ? 'ring-2 ring-emerald-500 bg-emerald-50/60 border-2 border-emerald-400 z-10' 
@@ -898,6 +902,19 @@ export const EquipmentList: React.FC = () => {
     }
   };
 
+  const renameEquipment = async (id: string, newName: string) => {
+    if (isReadOnly) return;
+    try {
+      await updateDoc(doc(db, 'equipment', id), { 
+        name: newName,
+        lastUpdated: serverTimestamp() 
+      });
+      setEquipment(prev => prev.map(e => e.id === id ? { ...e, name: newName } : e));
+    } catch (e) {
+      console.error("Error renaming equipment:", e);
+    }
+  };
+
   const deleteCategory = async (id: string) => {
     if (isReadOnly) return;
     try {
@@ -1032,7 +1049,7 @@ export const EquipmentList: React.FC = () => {
           status: newStatus,
           lastTurnedOn: newStatus === 'on' ? now : null,
           totalUsageTime: newStatus === 'off' ? newTotalUsage : (cutAtTime >= latestCutMs ? eq.totalUsageTime || 0 : 0),
-          lastShiftCutAt: Timestamp.fromDate(latestCutTime),
+          lastShiftCutAt: latestCutMs > cutAtTime ? Timestamp.fromDate(latestCutTime) : eq.lastShiftCutAt,
           lastOffReason: newStatus === 'off' ? (reason || null) : null
         };
       }
@@ -1049,7 +1066,7 @@ export const EquipmentList: React.FC = () => {
         lastUpdated: serverTimestamp(),
         lastTurnedOn: newStatus === 'on' ? Timestamp.now() : null,
         totalUsageTime: newStatus === 'off' ? newTotalUsage : (cutAtTime >= latestCutMs ? item.totalUsageTime || 0 : 0),
-        lastShiftCutAt: Timestamp.fromDate(latestCutTime),
+        lastShiftCutAt: latestCutMs > cutAtTime ? Timestamp.fromDate(latestCutTime) : item.lastShiftCutAt,
         lastOffReason: newStatus === 'off' ? (reason || null) : null
       });
 
@@ -1203,8 +1220,8 @@ export const EquipmentList: React.FC = () => {
       const totalRows = Math.max(1, highestRow + 1, rowsNeeded);
       totalSlots = Math.min(totalRows * cols, MAX_SLOTS);
     } else {
-      // When not dragging, minimize empty slots to reduce whitespace
-      totalSlots = Math.max(1, uniqueItems.length);
+      // When not dragging, only render slots if there are items to prevent unnecessary whitespace
+      totalSlots = uniqueItems.length > 0 ? Math.min(MAX_SLOTS, (highestRow + 1) * cols) : 0;
     }
 
     const slots: React.ReactNode[] = [];
@@ -1248,7 +1265,7 @@ export const EquipmentList: React.FC = () => {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="space-y-12">
+        <div className="space-y-12 pb-32">
           {/* Categorized Sections */}
           {categorized.map((cat, idx) => (
             <div key={`cat-${cat.id}-${idx}`} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-2xl w-full">
@@ -1331,6 +1348,7 @@ export const EquipmentList: React.FC = () => {
                   const currentEq = equipment.find(e => e.id === selectedEquipment.id) || selectedEquipment;
                   executeToggle(currentEq, reason, registerPowerRestored);
                 }}
+                onRenameEquipment={renameEquipment}
               />
             )}
           </AnimatePresence>

@@ -7,17 +7,21 @@ import {
   limit,
   where,
   doc, 
-  getDoc
+  getDoc,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreUtils';
 import { 
   Zap,
   ZapOff,
-  AlertTriangle
+  AlertTriangle,
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { calculateCurrentShiftUptime } from '../utils/shiftUtils';
 
 interface Equipment {
   id: string;
@@ -61,8 +65,27 @@ export const PanelRegistro: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [powerEvents, setPowerEvents] = useState<PowerEvent[]>([]);
-  const [shiftStartTime, setShiftStartTime] = useState('18:00');
+  const [shiftStartTime, setShiftStartTime] = useState('06:00');
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleRestorePower = async () => {
+    try {
+      setIsRestoring(true);
+      await addDoc(collection(db, 'power_events'), {
+        type: 'ok',
+        timestamp: serverTimestamp(),
+        userUid: auth.currentUser?.uid || null,
+        userEmail: auth.currentUser?.email || null,
+        notes: 'Servicio Restablecido'
+      });
+    } catch (error) {
+      console.error('Error restableciendo servicio:', error);
+      handleFirestoreError(error, OperationType.CREATE, 'power_events');
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   // Live timer tick every 10 seconds to update running equipment runtime in real time
   useEffect(() => {
@@ -85,19 +108,18 @@ export const PanelRegistro: React.FC = () => {
     return new Date();
   };
 
-  // 1. Fetch Config
+  // 1. Real-time Config listener
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, 'config', 'app_settings'));
-        if (docSnap.exists()) {
-          setShiftStartTime(docSnap.data().shiftStartTime || '18:00');
-        }
-      } catch (err) {
-        console.error("Error fetching config:", err);
+    const unsub = onSnapshot(doc(db, 'config', 'app_settings'), (docSnap) => {
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        const start = d.shiftStartTime;
+        setShiftStartTime(start === '18:00' || !start ? '06:00' : start);
       }
-    };
-    fetchConfig();
+    }, (err) => {
+      console.error("Error fetching config:", err);
+    });
+    return () => unsub();
   }, []);
 
   // 2. Real-time Equipments listener
@@ -198,8 +220,13 @@ export const PanelRegistro: React.FC = () => {
   const shiftFallasCount = shiftPowerEvents.filter(e => e.type === 'falla').length;
   const shiftCortesCount = shiftPowerEvents.filter(e => e.type === 'corte').length;
   
-  // Latest overall power state
-  const latestPowerEvent = powerEvents.length > 0 ? powerEvents[powerEvents.length - 1] : null;
+  // Sort all power events chronologically ascending (oldest -> newest)
+  const sortedPowerEvents = [...powerEvents].sort(
+    (a, b) => safeToDate(a.timestamp).getTime() - safeToDate(b.timestamp).getTime()
+  );
+
+  // Latest overall power state is the most recent event (last in chronological order)
+  const latestPowerEvent = sortedPowerEvents.length > 0 ? sortedPowerEvents[sortedPowerEvents.length - 1] : null;
   const currentGlobalPowerType = latestPowerEvent ? latestPowerEvent.type : 'ok';
 
   // --- Calculate Accumulated Duration for Fallas and Cortes in this Shift ---
@@ -233,8 +260,8 @@ export const PanelRegistro: React.FC = () => {
     }
   });
 
-  // If still ongoing at current moment
-  if (activeTrackStartTime > 0 && (activeTrackType === 'falla' || activeTrackType === 'corte')) {
+  // If still ongoing at current moment AND overall power is not restored
+  if (activeTrackStartTime > 0 && (activeTrackType === 'falla' || activeTrackType === 'corte') && currentGlobalPowerType !== 'ok') {
     const evalMs = Math.min(currentTime.getTime(), shiftEnd.getTime());
     if (evalMs > activeTrackStartTime) {
       if (activeTrackType === 'falla') {
@@ -310,60 +337,10 @@ export const PanelRegistro: React.FC = () => {
                   const onCount = eqLogs.filter(l => l.action === 'on').length;
                   const offCount = eqLogs.filter(l => l.action === 'off').length;
 
-                  // Compute current shift total usage ms
-                  let totalMs = 0;
-                  let isOnState = false;
-                  let lastOnTime = 0;
-
-                  if (eqLogs.length > 0) {
-                    // If the first event in this shift is an 'off', it was running at shift start!
-                    if (eqLogs[0].action === 'off') {
-                      isOnState = true;
-                      lastOnTime = shiftStart.getTime();
-                    } else {
-                      // If the first event is 'on', it was NOT running at shift start; it started right at this event!
-                      isOnState = false;
-                      lastOnTime = 0;
-                    }
-                  } else {
-                    // No logs in current shift: only consider running if equipment is actively marked ON and operational time is enabled
-                    if (eq.status === 'on' && eq.tiempo_operativo !== false) {
-                      isOnState = true;
-                      const turnedOnTime = eq.lastTurnedOn ? safeToDate(eq.lastTurnedOn).getTime() : 0;
-                      lastOnTime = (turnedOnTime > shiftStart.getTime() && turnedOnTime <= currentTime.getTime())
-                        ? turnedOnTime
-                        : shiftStart.getTime();
-                    } else {
-                      isOnState = false;
-                      lastOnTime = 0;
-                    }
-                  }
-
-                  eqLogs.forEach(log => {
-                    const logDate = safeToDate(log.timestamp);
-                    const logTime = logDate.getTime();
-                    if (log.action === 'on') {
-                      if (!isOnState) {
-                        isOnState = true;
-                        lastOnTime = logTime;
-                      }
-                    } else if (log.action === 'off') {
-                      if (isOnState && lastOnTime > 0) {
-                        totalMs += Math.max(0, logTime - lastOnTime);
-                        isOnState = false;
-                        lastOnTime = 0;
-                      }
-                    }
-                  });
-
-                  if (isOnState && lastOnTime > 0) {
-                    const evalMs = Math.min(currentTime.getTime(), shiftEnd.getTime());
-                    if (evalMs > lastOnTime) {
-                      totalMs += (evalMs - lastOnTime);
-                    }
-                  }
-
-                  const isON = eqLogs.length > 0 ? isOnState : (eq.status === 'on');
+                  // Compute current shift total usage using shared calculateCurrentShiftUptime for 100% consistency with Home screen
+                  const shiftUptimeSeconds = (eq.tiempo_operativo !== false) ? calculateCurrentShiftUptime(eq, shiftStart, currentTime) : 0;
+                  const totalMs = shiftUptimeSeconds * 1000;
+                  const isON = eq.status === 'on';
 
                   const totalMinutes = Math.round(totalMs / 60000);
                   const hrs = Math.floor(totalMinutes / 60);
@@ -441,7 +418,7 @@ export const PanelRegistro: React.FC = () => {
 
           {/* Table Header Titles matching Equipment */}
           <div className="hidden sm:flex items-center gap-5 text-[11px] font-bold uppercase tracking-wider">
-            <span className="w-16 text-center text-slate-600">ESTADO</span>
+            <span className="w-24 text-center text-slate-600">ESTADO</span>
             <span className="w-16 text-center text-amber-600">EVENTOS</span>
             <span className="w-24 text-center text-indigo-600">TIEMPO</span>
           </div>
@@ -463,12 +440,23 @@ export const PanelRegistro: React.FC = () => {
 
             <div className="flex items-center justify-between sm:justify-end gap-5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
               {/* Estado */}
-              <div className="w-16 text-center flex flex-col items-center">
+              <div className="w-24 text-center flex flex-col items-center gap-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase sm:hidden block mb-0.5">ESTADO</span>
                 {currentGlobalPowerType === 'falla' ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-500 text-white animate-pulse shadow-xs">
-                    ACTIVA
-                  </span>
+                  <>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-500 text-white animate-pulse shadow-xs">
+                      ACTIVA
+                    </span>
+                    <button
+                      onClick={handleRestorePower}
+                      disabled={isRestoring}
+                      className="mt-0.5 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-md text-[10px] font-bold transition-all flex items-center gap-1"
+                      title="Marcar servicio como restablecido"
+                    >
+                      <Check size={10} />
+                      <span>{isRestoring ? '...' : 'Restablecer'}</span>
+                    </button>
+                  </>
                 ) : (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     OK
@@ -512,12 +500,23 @@ export const PanelRegistro: React.FC = () => {
 
             <div className="flex items-center justify-between sm:justify-end gap-5 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
               {/* Estado */}
-              <div className="w-16 text-center flex flex-col items-center">
+              <div className="w-24 text-center flex flex-col items-center gap-1">
                 <span className="text-[10px] font-bold text-slate-500 uppercase sm:hidden block mb-0.5">ESTADO</span>
                 {currentGlobalPowerType === 'corte' ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white animate-pulse shadow-xs">
-                    ACTIVO
-                  </span>
+                  <>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white animate-pulse shadow-xs">
+                      ACTIVO
+                    </span>
+                    <button
+                      onClick={handleRestorePower}
+                      disabled={isRestoring}
+                      className="mt-0.5 px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-md text-[10px] font-bold transition-all flex items-center gap-1"
+                      title="Marcar servicio como restablecido"
+                    >
+                      <Check size={10} />
+                      <span>{isRestoring ? '...' : 'Restablecer'}</span>
+                    </button>
+                  </>
                 ) : (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                     OK

@@ -45,7 +45,7 @@ export default function App() {
     }
     return false;
   });
-  const [shiftStartTime, setShiftStartTime] = useState('18:00');
+  const [shiftStartTime, setShiftStartTime] = useState('06:00');
 
   useEffect(() => {
     if (!profileLoading) {
@@ -88,7 +88,35 @@ export default function App() {
       try {
         const configDoc = await getDoc(doc(db, 'config', 'app_settings'));
         if (configDoc.exists()) {
-          setShiftStartTime(configDoc.data().shiftStartTime || '18:00');
+          const d = configDoc.data();
+          let sStart = d.shiftStartTime;
+          let sEnd = d.shiftEndTime;
+          let rCron = d.reportCronTime;
+          let needsUpdate = false;
+
+          if (sStart === '18:00' || !sStart) {
+            sStart = '06:00';
+            needsUpdate = true;
+          }
+          if (sEnd === '18:00' || !sEnd) {
+            sEnd = '06:00';
+            needsUpdate = true;
+          }
+          if (rCron === '0 18 * * *' || !rCron) {
+            rCron = '0 6 * * *';
+            needsUpdate = true;
+          }
+
+          setShiftStartTime(sStart);
+
+          if (needsUpdate) {
+            await setDoc(doc(db, 'config', 'app_settings'), {
+              ...d,
+              shiftStartTime: sStart,
+              shiftEndTime: sEnd,
+              reportCronTime: rCron
+            }, { merge: true });
+          }
         }
       } catch (error) {
         console.warn('Notice fetching config in App (using default or cache):', error);

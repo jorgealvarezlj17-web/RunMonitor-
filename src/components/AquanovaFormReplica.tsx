@@ -323,7 +323,7 @@ export const AquanovaFormReplica = () => {
     const setupListeners = async () => {
       // 1. Get shift start time (one-time or could be listener too)
       const configSnap = await getDoc(doc(db, 'config', 'app_settings'));
-      const startTimeStr = configSnap.exists() ? configSnap.data().shiftStartTime : '18:00';
+      const startTimeStr = configSnap.exists() ? (configSnap.data().shiftStartTime || '06:00') : '06:00';
       
       const calculateShiftRange = () => {
         const end = new Date();

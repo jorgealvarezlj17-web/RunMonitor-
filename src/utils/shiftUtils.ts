@@ -15,14 +15,14 @@ export function getSafeMillis(ts: any): number {
 
 /**
  * Returns the exact Date of the most recent shift cut.
- * e.g., if cut hour is 18:00:
- * At 19:30 today -> returns today at 18:00:00.000
- * At 15:00 today -> returns yesterday at 18:00:00.000
- * At 18:00:00 today -> returns today at 18:00:00.000
+ * e.g., if cut hour is 06:00:
+ * At 09:30 today -> returns today at 06:00:00.000
+ * At 03:00 today -> returns yesterday at 06:00:00.000
+ * At 06:00:00 today -> returns today at 06:00:00.000
  */
-export function getLatestShiftCutTime(shiftTimeStr: string = '18:00', now: Date = new Date()): Date {
+export function getLatestShiftCutTime(shiftTimeStr: string = '06:00', now: Date = new Date()): Date {
   const parts = shiftTimeStr.split(':').map(Number);
-  const h = isNaN(parts[0]) ? 18 : parts[0];
+  const h = isNaN(parts[0]) ? 6 : parts[0];
   const m = isNaN(parts[1]) ? 0 : parts[1];
 
   const cutToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
@@ -34,7 +34,7 @@ export function getLatestShiftCutTime(shiftTimeStr: string = '18:00', now: Date 
   return cutYesterday;
 }
 
-export function getShiftKey(cutDate: Date, shiftTimeStr: string = '18:00'): string {
+export function getShiftKey(cutDate: Date, shiftTimeStr: string = '06:00'): string {
   const y = cutDate.getFullYear();
   const m = String(cutDate.getMonth() + 1).padStart(2, '0');
   const d = String(cutDate.getDate()).padStart(2, '0');

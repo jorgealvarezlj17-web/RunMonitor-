@@ -110,9 +110,9 @@ export const Settings: React.FC = () => {
     whatsappApiUrl: 'https://bot-whatsapp-baileys-jpyb.onrender.com/send-message',
     whatsappToken: '',
     whatsappGroupId: '584127653247',
-    reportCronTime: '0 18 * * *', // Default 6 PM
-    shiftStartTime: '18:00',
-    shiftEndTime: '18:00',
+    reportCronTime: '0 6 * * *', // Default 6 AM
+    shiftStartTime: '06:00',
+    shiftEndTime: '06:00',
     shiftRangeMode: 'scheduled',
     autoSendWhatsAppEnabled: true
   });
@@ -196,8 +196,8 @@ export const Settings: React.FC = () => {
           greenApiInstanceId: data.greenApiInstanceId || '710722721756',
           greenApiToken: data.greenApiToken || '648d092ee3fc4965b6a69e39f5f7d15c2694eb6bc7be48058b',
           greenApiChatId: data.greenApiChatId || '120363427690312638@g.us',
-          shiftStartTime: data.shiftStartTime || '18:00',
-          shiftEndTime: data.shiftEndTime || '18:00',
+          shiftStartTime: data.shiftStartTime || '06:00',
+          shiftEndTime: data.shiftEndTime || '06:00',
           shiftRangeMode: data.shiftRangeMode || 'scheduled'
         }));
       }
@@ -529,8 +529,8 @@ export const Settings: React.FC = () => {
 
   // Human readable description of the scheduled cycle
   const getCycleSummaryText = () => {
-    const startStr = to12h(config.shiftStartTime || '18:00');
-    const endStr = to12h(config.shiftEndTime || '18:00');
+    const startStr = to12h(config.shiftStartTime || '06:00');
+    const endStr = to12h(config.shiftEndTime || '06:00');
     const isUntilNow = config.shiftRangeMode === 'until_now';
 
     if (isUntilNow) {
@@ -837,14 +837,14 @@ export const Settings: React.FC = () => {
                         <span className={`font-mono font-black text-2xl transition-colors ${
                           config.shiftRangeMode === 'until_now' ? 'text-slate-400' : 'text-slate-800 group-hover:text-teal-600'
                         }`}>
-                          {config.shiftRangeMode === 'until_now' ? 'En vivo' : to12h(config.shiftEndTime || '18:00')}
+                          {config.shiftRangeMode === 'until_now' ? 'En vivo' : to12h(config.shiftEndTime || '06:00')}
                         </span>
                         <span className={`text-xs font-sans font-bold px-2.5 py-1 rounded-lg border ${
                           config.shiftRangeMode === 'until_now'
                             ? 'bg-slate-100 text-slate-500 border-slate-200'
                             : 'text-teal-700 bg-teal-50 border-teal-200/60'
                         }`}>
-                          {config.shiftRangeMode === 'until_now' ? 'Ahora' : (config.shiftEndTime || '18:00')}
+                          {config.shiftRangeMode === 'until_now' ? 'Ahora' : (config.shiftEndTime || '06:00')}
                         </span>
                       </button>
                     </div>
@@ -855,7 +855,7 @@ export const Settings: React.FC = () => {
                     <div className="h-2 bg-slate-200 rounded-full relative overflow-hidden flex items-center shadow-inner">
                       {(() => {
                         const sTime = config.shiftStartTime || '06:00';
-                        const eTime = config.shiftEndTime || '18:00';
+                        const eTime = config.shiftEndTime || '06:00';
                         const [sH, sM] = sTime.split(':').map(Number);
                         const [eH, eM] = eTime.split(':').map(Number);
                         const startMinutes = sH * 60 + sM;
@@ -908,7 +908,7 @@ export const Settings: React.FC = () => {
                 </div>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-extrabold rounded-full border border-emerald-200/60">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  Cierre a las {config.shiftEndTime || '18:00'}
+                  Cierre a las {config.shiftEndTime || '06:00'}
                 </span>
               </div>
 
@@ -968,7 +968,7 @@ export const Settings: React.FC = () => {
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Envío Automático a WhatsApp</h2>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      El reporte diario se genera y se envía automáticamente a la Hora de Fin ({config.shiftEndTime || '18:00'})
+                      El reporte diario se genera y se envía automáticamente a la Hora de Fin ({config.shiftEndTime || '06:00'})
                     </p>
                   </div>
                 </div>

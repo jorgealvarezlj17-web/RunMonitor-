@@ -53,16 +53,16 @@ export async function buildShiftReportText(options?: {
       const configDoc = await getDoc(doc(db, 'config', 'app_settings'));
       if (configDoc.exists()) {
         const d = configDoc.data();
-        if (!startTimeStr) startTimeStr = d.shiftStartTime || '18:00';
-        if (!endTimeStr) endTimeStr = d.shiftEndTime || '18:00';
+        if (!startTimeStr) startTimeStr = d.shiftStartTime || '06:00';
+        if (!endTimeStr) endTimeStr = d.shiftEndTime || '06:00';
       }
     } catch (e) {
       console.warn('Notice reading app_settings in buildShiftReportText:', e);
     }
   }
 
-  startTimeStr = startTimeStr || '18:00';
-  endTimeStr = endTimeStr || '18:00';
+  startTimeStr = startTimeStr || '06:00';
+  endTimeStr = endTimeStr || '06:00';
 
   // 2. Compute shift start and end (exact match with Panel de Registro)
   const [startHour, startMin] = startTimeStr.split(':').map(Number);

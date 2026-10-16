@@ -94,6 +94,12 @@ export const PowerEventsLog: React.FC = () => {
         id: doc.id,
         ...doc.data()
       }));
+      // Orden de arriba hacia abajo: los anteriores arriba y cada nuevo registro queda abajo
+      items.sort((a: any, b: any) => {
+        const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : (a.timestamp?.seconds ? a.timestamp.seconds * 1000 : (a.timestamp instanceof Date ? a.timestamp.getTime() : 0));
+        const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : (b.timestamp?.seconds ? b.timestamp.seconds * 1000 : (b.timestamp instanceof Date ? b.timestamp.getTime() : 0));
+        return timeA - timeB;
+      });
       setEvents(items);
       setLoading(false);
     }, (error) => {
@@ -129,8 +135,7 @@ export const PowerEventsLog: React.FC = () => {
         timestamp: Timestamp.fromDate(targetDate),
         userUid: auth.currentUser?.uid || null,
         userEmail: auth.currentUser?.email || null,
-        notes: eventNotes.trim() || (eventType === 'corte' ? 'Corte Eléctrico' : eventType === 'falla' ? 'Fluctuación Eléctrica' : 'Servicio Restablecido'),
-        isManual: true
+        notes: eventNotes.trim() || (eventType === 'corte' ? 'Corte Eléctrico' : eventType === 'falla' ? 'Fluctuación Eléctrica' : 'Servicio Restablecido')
       });
 
       setSaveSuccess(true);
@@ -175,7 +180,7 @@ export const PowerEventsLog: React.FC = () => {
     }
   };
 
-  const currentState = latestEvent ? latestEvent.type : (events.length > 0 ? events[0].type : 'ok');
+  const currentState = latestEvent ? latestEvent.type : (events.length > 0 ? events[events.length - 1].type : 'ok');
   const isFalla = currentState === 'falla';
   const isCorte = currentState === 'corte';
 
@@ -260,7 +265,7 @@ export const PowerEventsLog: React.FC = () => {
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                          <Plus size={15} className="text-amber-500" /> Nuevo Registro Manual
+                          <Plus size={15} className="text-amber-500" /> Nuevo Registro
                         </span>
                         <button
                           type="button"
@@ -422,7 +427,7 @@ export const PowerEventsLog: React.FC = () => {
                     ) : (
                       <>
                         <Plus size={13} />
-                        <span>Agregar Manual</span>
+                        <span>Agregar Evento</span>
                       </>
                     )}
                   </button>
@@ -439,7 +444,7 @@ export const PowerEventsLog: React.FC = () => {
                       <Zap size={32} />
                     </div>
                     <p className="text-slate-600 font-bold text-sm">No hay eventos registrados</p>
-                    <p className="text-slate-400 text-xs mt-1">Usa el botón "Agregar Manual" para añadir un corte o fluctuación.</p>
+                    <p className="text-slate-400 text-xs mt-1">Usa el botón "Agregar Evento" para añadir un corte o fluctuación.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -484,11 +489,6 @@ export const PowerEventsLog: React.FC = () => {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className={`font-black text-xs sm:text-sm ${textColor}`}>{title}</h4>
-                                {event.isManual && (
-                                  <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold">
-                                    Manual
-                                  </span>
-                                )}
                               </div>
                               <p className="text-[11px] font-medium text-slate-500 mt-0.5">
                                 {format(date, 'dd/MM/yyyy hh:mm a', { locale: es })}

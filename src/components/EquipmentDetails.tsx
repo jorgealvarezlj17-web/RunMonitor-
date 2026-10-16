@@ -43,7 +43,7 @@ interface Equipment {
   lastShiftCutAt?: any;
 }
 
-const UptimeDisplay: React.FC<{ equipment: Equipment; shiftEndTime?: string }> = ({ equipment, shiftEndTime = '18:00' }) => {
+const UptimeDisplay: React.FC<{ equipment: Equipment; shiftEndTime?: string }> = ({ equipment, shiftEndTime = '06:00' }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export const EquipmentDetails: React.FC<{
   shiftEndTime?: string;
   onRenameEquipment: (id: string, newName: string) => Promise<void>;
 }> = ({ equipment, onClose, initialEdit = false, onToggleStatus, shiftEndTime: propShiftEndTime, onRenameEquipment }) => {
-  const [shiftEndTime, setShiftEndTime] = useState(propShiftEndTime || '18:00');
+  const [shiftEndTime, setShiftEndTime] = useState(propShiftEndTime || '06:00');
 
   useEffect(() => {
     if (propShiftEndTime) {
@@ -86,7 +86,7 @@ export const EquipmentDetails: React.FC<{
     const unsub = onSnapshot(doc(db, 'config', 'app_settings'), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '18:00');
+        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '06:00');
       }
     });
     return () => unsub();
@@ -388,6 +388,24 @@ export const EquipmentDetails: React.FC<{
   }, [equipment.id, syncedUserIds]);
 
   const [showPowerPrompt, setShowPowerPrompt] = useState(false);
+  const [isPowerOut, setIsPowerOut] = useState(false);
+
+  useEffect(() => {
+    const qPower = query(
+      collection(db, 'power_events'),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    const unsubscribePower = onSnapshot(qPower, (snapshot) => {
+      if (!snapshot.empty) {
+        const latestEvent = snapshot.docs[0].data();
+        setIsPowerOut(latestEvent.type === 'falla' || latestEvent.type === 'corte');
+      } else {
+        setIsPowerOut(false);
+      }
+    });
+    return () => unsubscribePower();
+  }, []);
 
   const getSafeCachedUid = () => {
     try {
@@ -403,6 +421,11 @@ export const EquipmentDetails: React.FC<{
 
   const toggleStatus = async (reason?: string) => {
     if (isReadOnly || isProcessing || !currentUid || equipment.disabled) return;
+
+    if (isPowerOut && reason !== 'Apagado por falla en Corpoelec' && reason !== 'Apagado por corte eléctrico') {
+      setShowPowerPrompt(true);
+      return;
+    }
 
     if (equipment.status === 'off' && (equipment.lastOffReason === 'Apagado por falla en Corpoelec' || equipment.lastOffReason === 'Apagado por corte eléctrico')) {
       setShowPowerPrompt(true);
@@ -493,7 +516,7 @@ export const EquipmentDetails: React.FC<{
         });
       }
 
-      if (newStatus === 'on' && registerPowerRestored) {
+      if (registerPowerRestored) {
         const powerEventRef = doc(collection(db, 'power_events'));
         batch.set(powerEventRef, {
           type: 'ok',
@@ -2167,7 +2190,7 @@ export const EquipmentDetails: React.FC<{
                     </div>
                     <div>
                       <h3 className="text-xl font-black text-slate-900 leading-tight">¿Servicio Restablecido?</h3>
-                      <p className="text-sm font-medium text-slate-500 mt-1">El equipo fue apagado por falla eléctrica.</p>
+                      <p className="text-sm font-medium text-slate-500 mt-1">Hay una falla o corte eléctrico registrado en el sistema.</p>
                     </div>
                   </div>
                   <div className="space-y-3 mt-6">
@@ -2183,13 +2206,17 @@ export const EquipmentDetails: React.FC<{
                     </button>
                     <button
                       onClick={() => {
-                        sounds.playPowerOn();
+                        if (equipment.status === 'on') {
+                          sounds.playPowerOff();
+                        } else {
+                          sounds.playPowerOn();
+                        }
                         executeToggle(undefined, false);
                       }}
                       className="w-full p-4 bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2"
                     >
                       <Power size={20} />
-                      No, solo encender equipo
+                      No, solo {equipment.status === 'on' ? 'apagar' : 'encender'} equipo
                     </button>
                     <button
                       onClick={() => setShowPowerPrompt(false)}

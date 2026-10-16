@@ -10,8 +10,8 @@ import { updateStagedUpcomingReport } from '../services/reportBuilder';
 import { getLatestShiftCutTime, getShiftKey } from '../utils/shiftUtils';
 
 export function AutoReportGenerator() {
-  const [startTime, setStartTime] = useState('18:00');
-  const [endTime, setEndTime] = useState('18:00');
+  const [startTime, setStartTime] = useState('06:00');
+  const [endTime, setEndTime] = useState('06:00');
   const isStagingRef = useRef(false);
   const stagingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isCutCheckingRef = useRef(false);
@@ -25,7 +25,7 @@ export function AutoReportGenerator() {
     try {
       isCutCheckingRef.current = true;
       const now = new Date();
-      const effectiveEndTime = settings.shiftEndTime || settings.shiftStartTime || '18:00';
+      const effectiveEndTime = settings.shiftEndTime || settings.shiftStartTime || '06:00';
       const latestCut = getLatestShiftCutTime(effectiveEndTime, now);
       const shiftKey = getShiftKey(latestCut, effectiveEndTime);
       
@@ -127,7 +127,7 @@ export function AutoReportGenerator() {
       try {
         // Calculate if we are near the cut (5 minutes or less)
         const now = new Date();
-        const effectiveEndTime = latestSettingsRef.current?.shiftEndTime || '18:00';
+        const effectiveEndTime = latestSettingsRef.current?.shiftEndTime || '06:00';
         const latestCut = getLatestShiftCutTime(effectiveEndTime, now);
         const isNearCutoff = (latestCut.getTime() - now.getTime()) <= 5 * 60 * 1000 && (latestCut.getTime() - now.getTime()) > 0;
         

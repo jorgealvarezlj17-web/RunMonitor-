@@ -42,7 +42,7 @@ interface Category {
   order: number;
 }
 
-const CumulativeTimer = ({ equipment, shiftEndTime = "18:00", className = "" }: { equipment: Equipment, shiftEndTime?: string, className?: string }) => {
+const CumulativeTimer = ({ equipment, shiftEndTime = "06:00", className = "" }: { equipment: Equipment, shiftEndTime?: string, className?: string }) => {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ const CategoryHeader = ({ category, onRename, onDelete }: { category: Category, 
   );
 };
 
-const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, style, listeners, attributes, shiftEndTime = "18:00" }: any) => {
+const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, style, listeners, attributes, shiftEndTime = "06:00" }: any) => {
   if (!item) return null;
   const [showNote, setShowNote] = useState(false);
   const [showTurnOffOptions, setShowTurnOffOptions] = useState(false);
@@ -489,7 +489,7 @@ const EquipmentCard = React.memo(({ item, isDragging, processingId, toggleStatus
   );
 });
 
-const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, shiftEndTime = "18:00" }: any) => {
+const DraggableEquipmentCard = React.memo(({ item, processingId, toggleStatus, setSelectedEquipment, setIsEditingSelected, setConfirmAction, shiftEndTime = "06:00" }: any) => {
   if (!item) return null;
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: item.id,
@@ -600,7 +600,7 @@ export const EquipmentList: React.FC = () => {
     return [];
   });
   const [loading, setLoading] = useState(false);
-  const [shiftEndTime, setShiftEndTime] = useState('18:00');
+  const [shiftEndTime, setShiftEndTime] = useState('06:00');
   const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
   const [isEditingSelected, setIsEditingSelected] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -615,7 +615,7 @@ export const EquipmentList: React.FC = () => {
     const unsub = onSnapshot(doc(db, 'config', 'app_settings'), (snap) => {
       if (snap.exists()) {
         const d = snap.data();
-        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '18:00');
+        setShiftEndTime(d.shiftEndTime || d.shiftStartTime || '06:00');
       }
     });
     return () => unsub();
@@ -1243,6 +1243,7 @@ export const EquipmentList: React.FC = () => {
               setIsEditingSelected={setIsEditingSelected}
               setConfirmAction={setConfirmAction}
               processingId={processingId}
+              shiftEndTime={shiftEndTime}
             />
           ) : null}
         </DroppableSlot>

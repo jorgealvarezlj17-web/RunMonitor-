@@ -363,8 +363,8 @@ const to12h = (time24: string) => {
 export const CorteReporte: React.FC = () => {
   const { profile } = useProfile();
   const isReadOnly = profile?.is_synced === false;
-  const [startTime, setStartTime] = useState('18:00');
-  const [endTime, setEndTime] = useState('18:00');
+  const [startTime, setStartTime] = useState('06:00');
+  const [endTime, setEndTime] = useState('06:00');
   const [rangeMode, setRangeMode] = useState<'scheduled' | 'until_now'>('scheduled');
   const [timePickerTarget, setTimePickerTarget] = useState<'start' | 'end' | null>(null);
 

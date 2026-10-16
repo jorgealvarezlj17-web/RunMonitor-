@@ -350,8 +350,21 @@ export async function buildShiftReportText(options?: {
 
         if (eq.tiempo_operativo !== false) {
           let totalMs = 0;
-          let isOn = arrivalStatus === 'on';
-          let lastOnTime = isOn ? start.getTime() : 0;
+          let isOn = false;
+          let lastOnTime = 0;
+
+          if (eqLogs.length > 0) {
+            if (eqLogs[0].action === 'off') {
+              isOn = true;
+              lastOnTime = start.getTime();
+            } else {
+              isOn = false;
+              lastOnTime = 0;
+            }
+          } else if (eq.status === 'on' && arrivalStatus === 'on') {
+            isOn = true;
+            lastOnTime = start.getTime();
+          }
 
           eqLogs.forEach(log => {
             const logDate = safeToDate(log.timestamp);
@@ -362,14 +375,15 @@ export async function buildShiftReportText(options?: {
                 lastOnTime = logTime;
               }
             } else if (log.action === 'off') {
-              if (isOn) {
+              if (isOn && lastOnTime > 0) {
                 totalMs += Math.max(0, logTime - lastOnTime);
                 isOn = false;
+                lastOnTime = 0;
               }
             }
           });
 
-          if (isOn) {
+          if (isOn && lastOnTime > 0) {
             const currentEvalMs = Math.min(now.getTime(), evalEnd);
             if (currentEvalMs > lastOnTime) {
               totalMs += (currentEvalMs - lastOnTime);

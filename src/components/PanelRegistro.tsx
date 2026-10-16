@@ -303,18 +303,41 @@ export const PanelRegistro: React.FC = () => {
               {/* Rows */}
               <div className="divide-y divide-slate-100">
                 {catEquips.map(eq => {
-                  const eqLogs = shiftLogs.filter(l => l.equipmentId === eq.id);
+                  const eqLogs = shiftLogs
+                    .filter(l => l.equipmentId === eq.id || (l.equipmentName && eq.name && l.equipmentName.trim().toLowerCase() === eq.name.trim().toLowerCase()))
+                    .sort((a, b) => safeToDate(a.timestamp).getTime() - safeToDate(b.timestamp).getTime());
                   
                   const onCount = eqLogs.filter(l => l.action === 'on').length;
                   const offCount = eqLogs.filter(l => l.action === 'off').length;
 
                   // Compute current shift total usage ms
                   let totalMs = 0;
-                  const priorLogs = logs.filter(l => l.equipmentId === eq.id && safeToDate(l.timestamp) < shiftStart)
-                    .sort((a, b) => safeToDate(b.timestamp).getTime() - safeToDate(a.timestamp).getTime());
-                  let arrivalStatus = priorLogs.length > 0 ? (priorLogs[0].action === 'on' ? 'on' : 'off') : (eq.status === 'on' ? 'on' : 'off');
-                  let isOnState = arrivalStatus === 'on';
-                  let lastOnTime = isOnState ? shiftStart.getTime() : 0;
+                  let isOnState = false;
+                  let lastOnTime = 0;
+
+                  if (eqLogs.length > 0) {
+                    // If the first event in this shift is an 'off', it was running at shift start!
+                    if (eqLogs[0].action === 'off') {
+                      isOnState = true;
+                      lastOnTime = shiftStart.getTime();
+                    } else {
+                      // If the first event is 'on', it was NOT running at shift start; it started right at this event!
+                      isOnState = false;
+                      lastOnTime = 0;
+                    }
+                  } else {
+                    // No logs in current shift: only consider running if equipment is actively marked ON and operational time is enabled
+                    if (eq.status === 'on' && eq.tiempo_operativo !== false) {
+                      isOnState = true;
+                      const turnedOnTime = eq.lastTurnedOn ? safeToDate(eq.lastTurnedOn).getTime() : 0;
+                      lastOnTime = (turnedOnTime > shiftStart.getTime() && turnedOnTime <= currentTime.getTime())
+                        ? turnedOnTime
+                        : shiftStart.getTime();
+                    } else {
+                      isOnState = false;
+                      lastOnTime = 0;
+                    }
+                  }
 
                   eqLogs.forEach(log => {
                     const logDate = safeToDate(log.timestamp);
@@ -325,21 +348,22 @@ export const PanelRegistro: React.FC = () => {
                         lastOnTime = logTime;
                       }
                     } else if (log.action === 'off') {
-                      if (isOnState) {
+                      if (isOnState && lastOnTime > 0) {
                         totalMs += Math.max(0, logTime - lastOnTime);
                         isOnState = false;
+                        lastOnTime = 0;
                       }
                     }
                   });
 
-                  if (isOnState) {
+                  if (isOnState && lastOnTime > 0) {
                     const evalMs = Math.min(currentTime.getTime(), shiftEnd.getTime());
                     if (evalMs > lastOnTime) {
                       totalMs += (evalMs - lastOnTime);
                     }
                   }
 
-                  const isON = eqLogs.length > 0 ? isOnState : (eq.status === 'on' || isOnState);
+                  const isON = eqLogs.length > 0 ? isOnState : (eq.status === 'on');
 
                   const totalMinutes = Math.round(totalMs / 60000);
                   const hrs = Math.floor(totalMinutes / 60);

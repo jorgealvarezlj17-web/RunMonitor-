@@ -115,10 +115,25 @@ export const TeamPanel: React.FC = () => {
         fetchedProfiles.push({ id: docSnap.id, ...docSnap.data() } as Profile);
       });
 
+      // Deduplicate profiles by email to prevent duplicate entries (e.g. Jorge Álvarez)
+      const uniqueProfilesMap = new Map<string, Profile>();
+      fetchedProfiles.forEach(p => {
+        const key = p.email ? p.email.toLowerCase().trim() : p.id;
+        if (!uniqueProfilesMap.has(key)) {
+          uniqueProfilesMap.set(key, p);
+        } else {
+          const existing = uniqueProfilesMap.get(key)!;
+          if (p.is_online && !existing.is_online) {
+            uniqueProfilesMap.set(key, p);
+          }
+        }
+      });
+      let uniqueProfiles = Array.from(uniqueProfilesMap.values());
+
       // Ensure master admin is visible in the list even before their first Firestore write
-      const hasMaster = fetchedProfiles.some(p => isMasterAdminEmail(p.email));
+      const hasMaster = uniqueProfiles.some(p => isMasterAdminEmail(p.email));
       if (!hasMaster && auth.currentUser && isMasterAdminEmail(auth.currentUser.email)) {
-        fetchedProfiles.unshift({
+        uniqueProfiles.unshift({
           id: auth.currentUser.uid,
           email: auth.currentUser.email || 'jorgealvarez.lj17@gmail.com',
           full_name: auth.currentUser.displayName || 'Jorge Álvarez (Administrador Principal)',
@@ -130,7 +145,7 @@ export const TeamPanel: React.FC = () => {
         });
       }
 
-      setProfiles(fetchedProfiles);
+      setProfiles(uniqueProfiles);
       setLoading(false);
     }, (err) => {
       console.error('Error fetching profiles:', err);
@@ -458,12 +473,10 @@ export const TeamPanel: React.FC = () => {
 
   // Filtered profiles for User Tab
   const filteredProfiles = useMemo(() => {
-    // Sort profiles: Master Admin first, then other Admins, then Operators
-    const sorted = [...profiles].sort((a, b) => {
-      const aMaster = isMasterAdminEmail(a.email);
-      const bMaster = isMasterAdminEmail(b.email);
-      if (aMaster && !bMaster) return -1;
-      if (!aMaster && bMaster) return 1;
+    // Exclude master admin from grid list since master admin has a dedicated top featured card
+    const nonMasterProfiles = profiles.filter(p => !isMasterAdminEmail(p.email));
+
+    const sorted = [...nonMasterProfiles].sort((a, b) => {
       if (a.role === 'admin' && b.role !== 'admin') return -1;
       if (a.role !== 'admin' && b.role === 'admin') return 1;
       return (a.full_name || a.email || '').localeCompare(b.full_name || b.email || '');
@@ -481,8 +494,8 @@ export const TeamPanel: React.FC = () => {
 
       if (userFilter === 'online') return isOnline;
       if (userFilter === 'offline') return !isOnline;
-      if (userFilter === 'admin') return p.role === 'admin' || isMasterAdminEmail(p.email);
-      if (userFilter === 'operator') return p.role === 'operator' && !isMasterAdminEmail(p.email);
+      if (userFilter === 'admin') return p.role === 'admin';
+      if (userFilter === 'operator') return p.role === 'operator';
       return true;
     });
   }, [profiles, searchTerm, userFilter]);
@@ -561,67 +574,6 @@ export const TeamPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Stats Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        {/* Real-time Online Users KPI */}
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 border border-emerald-200/80 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800">En Línea Ahora</span>
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-emerald-950">{stats.onlineUsers}</span>
-            <span className="text-xs font-bold text-emerald-700">conectado{stats.onlineUsers === 1 ? '' : 's'}</span>
-          </div>
-          <p className="text-[10px] font-semibold text-emerald-700/80 mt-1">Actividad en vivo &lt; 90s</p>
-        </div>
-
-        {/* Offline Users KPI */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Desconectados</span>
-            <Clock size={16} className="text-slate-400" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-800">{stats.offlineUsers}</span>
-            <span className="text-xs font-bold text-slate-500">fuera de línea</span>
-          </div>
-          <p className="text-[10px] font-semibold text-slate-400 mt-1">Sin sesión activa</p>
-        </div>
-
-        {/* Security Filter Whitelist Count */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-cyan-800">Filtro de Correos</span>
-            <ShieldCheck size={16} className="text-cyan-600" />
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-black text-cyan-950">{stats.totalAllowed}</span>
-            <span className="text-xs font-bold text-cyan-700">autorizados</span>
-          </div>
-          <p className="text-[10px] font-semibold text-cyan-600/80 mt-1">{stats.activeAllowed} activos con acceso</p>
-        </div>
-
-        {/* Security Status Mode */}
-        <div className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Protección</span>
-            <Lock size={15} className="text-emerald-400" />
-          </div>
-          <div className="mt-2">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span className="text-sm font-black text-emerald-400">Filtro Estricto</span>
-            </div>
-            <p className="text-[10px] text-slate-300 mt-1 leading-tight font-medium">
-              Solo correos registrados pueden acceder
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Real-time Update Notice Status for Admins */}
       {isUpdatingApp && (
@@ -705,7 +657,7 @@ export const TeamPanel: React.FC = () => {
         >
           {/* Search & Filter Bar */}
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80">
+            <div className="relative w-full sm:w-96">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
               <input
                 type="text"
@@ -715,129 +667,7 @@ export const TeamPanel: React.FC = () => {
                 className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 shadow-xs"
               />
             </div>
-
-            {/* Quick Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto p-1 bg-slate-100 rounded-2xl border border-slate-200/60 text-xs font-bold text-slate-600">
-              <button
-                type="button"
-                onClick={() => { sounds.playClick(); setUserFilter('all'); }}
-                className={`px-3 py-1.5 rounded-xl transition-all ${userFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-black' : 'hover:text-slate-900'}`}
-              >
-                Todos ({stats.totalUsers})
-              </button>
-              <button
-                type="button"
-                onClick={() => { sounds.playClick(); setUserFilter('online'); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all ${userFilter === 'online' ? 'bg-white text-emerald-800 shadow-xs font-black' : 'hover:text-emerald-700'}`}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>En Línea ({stats.onlineUsers})</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { sounds.playClick(); setUserFilter('offline'); }}
-                className={`px-3 py-1.5 rounded-xl transition-all ${userFilter === 'offline' ? 'bg-white text-slate-800 shadow-xs font-black' : 'hover:text-slate-900'}`}
-              >
-                Desconectados ({stats.offlineUsers})
-              </button>
-              <button
-                type="button"
-                onClick={() => { sounds.playClick(); setUserFilter('admin'); }}
-                className={`px-3 py-1.5 rounded-xl transition-all ${userFilter === 'admin' ? 'bg-white text-purple-800 shadow-xs font-black' : 'hover:text-purple-700'}`}
-              >
-                Admins ({stats.adminUsers})
-              </button>
-            </div>
           </div>
-
-          {/* Tarjeta Destacada de Conectividad del Administrador Principal */}
-          {masterAdminProfile && (
-            <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-purple-500/10 border-2 border-amber-400/50 rounded-3xl p-5 shadow-xs relative overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative shrink-0">
-                    {masterAdminProfile.photo_url ? (
-                      <img
-                        src={masterAdminProfile.photo_url}
-                        alt="Administrador Principal"
-                        className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-400 shadow-xs"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-white font-black text-xl shadow-xs">
-                        👑
-                      </div>
-                    )}
-                    {isProfileOnline(masterAdminProfile) ? (
-                      <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
-                      </span>
-                    ) : (
-                      <span className="absolute -bottom-1 -right-1 h-3.5 w-3.5 rounded-full bg-slate-300 border-2 border-white"></span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-base font-black text-slate-900 truncate">
-                        {masterAdminProfile.full_name || 'Jorge Álvarez'}
-                      </h3>
-                      <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-amber-500 text-white rounded-md shadow-2xs flex items-center gap-1">
-                        <Crown size={12} />
-                        <span>Administrador Principal & Propietario</span>
-                      </span>
-                      {auth.currentUser && (masterAdminProfile.id === auth.currentUser.uid || masterAdminProfile.email?.toLowerCase().trim() === auth.currentUser.email?.toLowerCase().trim()) && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-white rounded-md">
-                          Tu Sesión Actual
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium truncate mt-0.5">
-                      {masterAdminProfile.email}
-                    </p>
-
-                    <div className="flex items-center gap-3 mt-2 flex-wrap text-xs">
-                      <div className="flex items-center gap-1.5 font-bold">
-                        {isProfileOnline(masterAdminProfile) ? (
-                          <>
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span className="text-emerald-700">Conectado y Activo en Vivo</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                            <span className="text-slate-500">
-                              Última conexión: {masterAdminProfile.last_connection ? format(new Date(masterAdminProfile.last_connection), 'dd/MM/yyyy hh:mm a', { locale: es }) : 'No registrada'}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-slate-300">•</span>
-                      <span className="text-purple-700 font-bold bg-purple-100/80 px-2 py-0.5 rounded-md border border-purple-200">
-                        Control Total Ilimitado del Sistema
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex sm:flex-col items-start sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-amber-200/60 shrink-0">
-                  <span className="text-[11px] font-black text-amber-950 uppercase tracking-wider flex items-center gap-1">
-                    <Zap size={13} className="text-amber-500 fill-amber-500" />
-                    Conectividad Maestra
-                  </span>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border mt-1 flex items-center gap-1.5 shadow-2xs ${
-                    isProfileOnline(masterAdminProfile)
-                      ? 'text-emerald-700 bg-emerald-100/90 border-emerald-300'
-                      : 'text-slate-600 bg-slate-100 border-slate-300'
-                  }`}>
-                    {isProfileOnline(masterAdminProfile) ? <Wifi size={13} className="text-emerald-600" /> : <WifiOff size={13} className="text-slate-500" />}
-                    <span>{isProfileOnline(masterAdminProfile) ? 'Transmisión en Vivo' : 'En Espera'}</span>
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* User Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
